@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\Supply\StoreDonorProjectionService;
+use App\Services\Supply\StoreLocationMaterialDonorService;
 use App\Services\Supply\SupplyServiceClient;
 use App\Services\Supply\SupplyServiceValidationException;
 use Illuminate\Contracts\View\View;
@@ -16,6 +17,7 @@ class StoreLocationDonorController extends Controller
     public function __construct(
         private readonly SupplyServiceClient $supplyServiceClient,
         private readonly StoreDonorProjectionService $projectionService,
+        private readonly StoreLocationMaterialDonorService $storeLocationMaterialDonorService,
     ) {}
 
     public function create(Request $request, int $store): View
@@ -76,11 +78,14 @@ class StoreLocationDonorController extends Controller
         return redirect()->route('stores.show', $store)->with('success', 'Lokasi berhasil dihapus!');
     }
 
-    public function materials(int $store, int $location): RedirectResponse
+    public function materials(Request $request, int $store, int $location): View
     {
-        return redirect()
-            ->route('materials.index')
-            ->with('info', 'Halaman material per lokasi sedang disambungkan ke donor store-location.');
+        return view('store-locations.materials', $this->storeLocationMaterialDonorService->buildPageData(
+            $store,
+            $location,
+            $request->query(),
+            $request->user(),
+        ));
     }
 
     /**

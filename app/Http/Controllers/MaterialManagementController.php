@@ -6,12 +6,12 @@ use App\Models\MaterialSetting;
 use App\Services\Supply\SupplyServiceClient;
 use App\Services\Supply\SupplyServiceValidationException;
 use App\Support\Supply\SupplyMaterialCatalog;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
 use Throwable;
 
@@ -24,8 +24,9 @@ class MaterialManagementController extends Controller
     public function index(Request $request): View
     {
         $allSettings = $this->getDisplayMaterialSettings();
+        $countSummary = $this->getDisplayMaterialCounts($request);
         $materials = [];
-        $grandTotal = 0;
+        $grandTotal = array_sum($countSummary);
         $activeTab = $this->normalizeDisplayMaterialType((string) $request->query('tab', ''));
         $firstType = $this->normalizeDisplayMaterialType((string) ($allSettings->first()->material_type ?? 'brick'));
         $targetTab = $activeTab !== '' ? $activeTab : $firstType;
@@ -39,8 +40,7 @@ class MaterialManagementController extends Controller
                     ? $this->getDisplayMaterialPayload($type, $request)
                     : ['data' => [], 'current_page' => 1, 'per_page' => 15, 'total' => 0, 'last_page' => 1];
 
-                $dbCount = (int) ($payload['total'] ?? 0);
-                $grandTotal += $dbCount;
+                $dbCount = (int) ($countSummary[$type] ?? ($payload['total'] ?? 0));
 
                 $materials[] = [
                     'type' => $type,
@@ -275,6 +275,33 @@ class MaterialManagementController extends Controller
     }
 
     /**
+     * @return array<string, int>
+     */
+    private function getDisplayMaterialCounts(Request $request): array
+    {
+        $counts = [];
+
+        foreach ($this->displaySourceFamilies() as $displayType => $families) {
+            $counts[$displayType] = collect($families)
+                ->sum(function (string $family) use ($request): int {
+                    try {
+                        $payload = $this->supplyServiceClient->listMaterials($family, [
+                            'perPage' => 1,
+                        ], $request->user());
+                    } catch (Throwable $exception) {
+                        report($exception);
+
+                        return 0;
+                    }
+
+                    return (int) ($payload['total'] ?? 0);
+                });
+        }
+
+        return $counts;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function getDisplayMaterialPayload(string $type, Request $request): array
@@ -396,6 +423,19 @@ class MaterialManagementController extends Controller
         }
 
         return $grouped;
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    private function displaySourceFamilies(): array
+    {
+        return collect($this->displayMaterialFamilies())
+            ->keys()
+            ->mapWithKeys(fn (string $type): array => [
+                $type => $type === 'cement' ? ['cement', 'nat'] : [$type],
+            ])
+            ->all();
     }
 
     /**

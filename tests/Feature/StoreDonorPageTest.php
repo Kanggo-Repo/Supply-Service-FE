@@ -213,4 +213,61 @@ class StoreDonorPageTest extends TestCase
         $locationCreateModal->assertSee('/js/store-location-form.js', false);
         $locationCreateModal->assertSee('TB Alpha');
     }
+
+    public function test_store_update_and_delete_forward_to_supply_be(): void
+    {
+        $user = User::factory()->create([
+            'permission_snapshot' => ['stores.update', 'stores.delete', 'stores.view'],
+        ]);
+
+        Http::fake([
+            'http://supply-be.test/api/v1/stores/9' => function (ClientRequest $request) {
+                if ($request->method() === 'GET') {
+                    return Http::response([
+                        'data' => [
+                            'id' => 9,
+                            'name' => 'TB Delta',
+                            'locations' => [],
+                            'location_count' => 0,
+                            'material_availability_count' => 0,
+                        ],
+                    ], 200);
+                }
+
+                if ($request->method() === 'PUT') {
+                    return Http::response([
+                        'message' => 'Store updated successfully',
+                        'data' => [
+                            'id' => 9,
+                            'name' => 'TB Delta Baru',
+                        ],
+                    ], 200);
+                }
+
+                return Http::response([
+                    'message' => 'Store deleted successfully',
+                ], 200);
+            },
+        ]);
+
+        $editPage = $this->actingAs($user)->get('/stores/9/edit');
+        $editPage->assertOk()->assertSee('TB Delta');
+
+        $updateResponse = $this->actingAs($user)->put('/stores/9', [
+            'name' => 'TB Delta Baru',
+        ]);
+        $updateResponse->assertRedirect('/stores');
+        $updateResponse->assertSessionHas('success');
+
+        $deleteResponse = $this->actingAs($user)->delete('/stores/9');
+        $deleteResponse->assertRedirect('/stores');
+        $deleteResponse->assertSessionHas('success');
+
+        Http::assertSent(fn (ClientRequest $request) => $request->method() === 'PUT'
+            && $request->url() === 'http://supply-be.test/api/v1/stores/9'
+            && data_get($request->data(), 'name') === 'TB Delta Baru');
+
+        Http::assertSent(fn (ClientRequest $request) => $request->method() === 'DELETE'
+            && $request->url() === 'http://supply-be.test/api/v1/stores/9');
+    }
 }

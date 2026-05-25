@@ -438,15 +438,35 @@
         </div>
     </div>
     <div class="nav-overlay" id="navOverlay"></div>
+    @php
+        $sidebarUser = auth()->user();
+        $sidebarGate = app(\App\Support\Auth\SupplyPermissionGate::class);
+        $canSeeDashboard = $sidebarUser !== null;
+        $canSeeMaterials = $sidebarGate->allowsAny($sidebarUser, [
+            'materials.view', 'materials.create', 'materials.update', 'materials.delete', 'materials.import', 'materials.export', 'materials.manage',
+        ]);
+        $canManageMaterials = $sidebarGate->allowsAny($sidebarUser, [
+            'materials.create', 'materials.update', 'materials.delete', 'materials.import', 'materials.export', 'materials.manage',
+        ]);
+        $canSeeStores = $sidebarGate->allowsAny($sidebarUser, [
+            'stores.view', 'stores.create', 'stores.update', 'stores.delete', 'stores.manage',
+        ]);
+        $canSeeUnits = $sidebarGate->allowsAny($sidebarUser, [
+            'units.view', 'units.create', 'units.update', 'units.delete', 'units.manage',
+        ]);
+        $canSeeStoreSearchRadiusSettings = $sidebarGate->allowsAny($sidebarUser, [
+            'store-search-radius.view', 'store-search-radius.update', 'store-search-radius.manage', 'settings.manage',
+        ]);
+    @endphp
     <aside class="sidebar-nav" id="sidebarNav">
         <div class="nav">
-            @can('dashboard.view')
+            @if($canSeeDashboard)
                 <a href="{{ url('/') }}" class="{{ request()->routeIs('dashboard') || request()->routeIs('material-calculator.dashboard') ? 'active' : '' }}">
                     <i class="bi bi-houses"></i></i> Dashboard
                 </a>
-            @endcan
+            @endif
 
-            @canany(['materials.view', 'materials.create', 'materials.update', 'materials.delete', 'materials.import', 'materials.export', 'materials.manage'])
+            @if($canSeeMaterials)
                 <!-- Material Dropdown (Modified for Return & Hover) -->
                 <div class="nav-dropdown-wrapper material-wrapper">
                     <a href="{{ route('materials.index') }}" class="nav-link-btn {{ request()->routeIs('materials.*') || request()->routeIs('bricks.*') || request()->routeIs('cements.*') || request()->routeIs('nats.*') || request()->routeIs('sands.*') || request()->routeIs('cats.*') || request()->routeIs('ceramics.*') || request()->routeIs('steels.*') || request()->routeIs('kasa_gypsums.*') || request()->routeIs('paku_tembaks.*') || request()->routeIs('pakus.*') ? 'active' : '' }}" id="materialNavLink">
@@ -487,7 +507,7 @@
                                 </div>
                             </div>
 
-                            @canany(['materials.create', 'materials.update', 'materials.delete', 'materials.import', 'materials.export', 'materials.manage'])
+                            @if($canManageMaterials)
                                 <div class="dropdown-item-parent">
                                     <div class="dropdown-item-trigger" tabindex="0" role="button">
                                         Tambah Material
@@ -515,11 +535,11 @@
                                         </div>
                                     </div>
                                 </div>
-                            @endcan
+                            @endif
                         </div>
                     </div>
                 </div>
-            @endcanany
+            @endif
 
             <style>
                 .sidebar-warning-count {
@@ -662,7 +682,7 @@
                 });
             </script>
 
-            @canany(['stores.view', 'stores.create', 'stores.update', 'stores.delete', 'stores.manage'])
+            @if($canSeeStores)
                 <a href="{{ route('stores.index') }}" class="{{ request()->routeIs('stores.*') || request()->routeIs('store-locations.*') ? 'active' : '' }}">
                     <i class="bi bi-shop"></i> Toko
                     @if(($sidebarStoresMissingMapCount ?? 0) > 0)
@@ -671,7 +691,7 @@
                         </span>
                     @endif
                 </a>
-            @endcanany
+            @endif
 
             @canany(['work-items.view', 'work-items.create', 'work-items.update', 'work-items.delete', 'work-items.manage', 'calculations.view', 'calculations.create', 'calculations.update', 'calculations.delete', 'calculations.export', 'calculations.manage', 'projects.view', 'projects.manage'])
                 <div class="nav-dropdown-wrapper work-item-wrapper">
@@ -741,13 +761,13 @@
                 </a>
             @endcan
 
-            @canany(['units.view', 'units.create', 'units.update', 'units.delete', 'units.manage'])
+            @if($canSeeUnits)
                 <a href="{{ route('units.index') }}" class="{{ request()->routeIs('units.*') ? 'active' : '' }}">
                     <i class="bi bi-rulers"></i> Satuan
                 </a>
-            @endcanany
+            @endif
 
-            @canany(['recommendations.view', 'recommendations.update', 'recommendations.manage', 'work-taxonomy.view', 'work-taxonomy.create', 'work-taxonomy.update', 'work-taxonomy.delete', 'work-taxonomy.manage', 'store-search-radius.view', 'store-search-radius.update', 'store-search-radius.manage', 'settings.manage', 'roles.view', 'roles.create', 'roles.update', 'roles.delete', 'roles.manage', 'users.view', 'users.create', 'users.update', 'users.delete', 'users.assign-roles', 'users.manage'])
+            @if($canSeeStoreSearchRadiusSettings)
                 <!-- Settings Dropdown -->
                 <div class="nav-dropdown-wrapper settings-wrapper" style="margin-left: auto;">
                     <button type="button" class="nav-link-btn {{ request()->routeIs('settings.*') ? 'active' : '' }}" id="settingsDropdownToggle">
@@ -756,16 +776,7 @@
 
                     <div class="nav-dropdown-menu" id="settingsDropdownMenu" style="left: auto; right: 0;">
                         <div class="nav-dropdown-content">
-                            @canany(['recommendations.view', 'recommendations.update', 'recommendations.manage', 'settings.manage'])
-                                <div class="dropdown-item-parent">
-                                    <a href="{{ route('settings.recommendations.index') }}"
-                                    class="dropdown-item-trigger d-flex align-items-center text-decoration-none"
-                                    role="button">
-                                        Manajemen Filter Preferensi
-                                    </a>
-                                </div>
-                            @endcanany
-                            @canany(['store-search-radius.view', 'store-search-radius.update', 'store-search-radius.manage', 'settings.manage'])
+                            @if($canSeeStoreSearchRadiusSettings)
                                 <div class="dropdown-item-parent">
                                     <a href="{{ route('settings.store-search-radius.index') }}"
                                     class="dropdown-item-trigger d-flex align-items-center text-decoration-none"
@@ -773,52 +784,11 @@
                                         Radius Pencarian Toko
                                     </a>
                                 </div>
-                            @endcanany
-                            @canany(['work-taxonomy.view', 'work-taxonomy.create', 'work-taxonomy.update', 'work-taxonomy.delete', 'work-taxonomy.manage', 'settings.manage'])
-                                <div class="dropdown-item-parent">
-                                    <a href="{{ route('settings.work-floors.index') }}"
-                                    class="dropdown-item-trigger d-flex align-items-center text-decoration-none"
-                                    role="button">
-                                        Manajemen Lantai
-                                    </a>
-                                </div>
-                                <div class="dropdown-item-parent">
-                                    <a href="{{ route('settings.work-areas.index') }}"
-                                    class="dropdown-item-trigger d-flex align-items-center text-decoration-none"
-                                    role="button">
-                                        Manajemen Area
-                                    </a>
-                                </div>
-                                <div class="dropdown-item-parent">
-                                    <a href="{{ route('settings.work-fields.index') }}"
-                                    class="dropdown-item-trigger d-flex align-items-center text-decoration-none"
-                                    role="button">
-                                        Manajemen Bidang
-                                    </a>
-                                </div>
-                            @endcanany
-                            @canany(['roles.view', 'roles.create', 'roles.update', 'roles.delete', 'roles.manage', 'settings.manage'])
-                                <div class="dropdown-item-parent">
-                                    <a href="{{ route('settings.roles.index') }}"
-                                    class="dropdown-item-trigger d-flex align-items-center text-decoration-none"
-                                    role="button">
-                                        Manajemen Role
-                                    </a>
-                                </div>
-                            @endcan
-                            @canany(['users.view', 'users.create', 'users.update', 'users.delete', 'users.assign-roles', 'users.manage', 'settings.manage'])
-                                <div class="dropdown-item-parent">
-                                    <a href="{{ route('settings.users.index') }}"
-                                    class="dropdown-item-trigger d-flex align-items-center text-decoration-none"
-                                    role="button">
-                                        Manajemen User
-                                    </a>
-                                </div>
-                            @endcan
+                            @endif
                         </div>
                     </div>
                 </div>
-            @endcanany
+            @endif
         </div>
     </aside>
 

@@ -1,5 +1,12 @@
+@php
+    $permissionGate = app(\App\Support\Auth\SupplyPermissionGate::class);
+    $canForceDelete = $permissionGate->allows(auth()->user(), 'materials.recycle-bin.delete');
+    $canRestore = $permissionGate->allows(auth()->user(), 'materials.recycle-bin.restore')
+        || (int) data_get($item, 'deleted_by.id', 0) === (int) auth()->id();
+@endphp
+
 <div class="btn-group-compact justify-center">
-    @if(auth()->user()->can('materials.recycle-bin.delete'))
+    @if($canForceDelete)
         <form
             method="POST"
             action="{{ route('materials.force-delete', ['type' => $item->material_type, 'id' => $item->id]) }}"
@@ -18,11 +25,13 @@
         </form>
     @endif
 
-    <form method="POST" action="{{ route('materials.restore', ['type' => $item->material_type, 'id' => $item->id]) }}" class="inline">
-        @csrf
-        <button type="submit" class="btn btn-success btn-action" title="Recycle (restore)">
-            <i class="bi bi-arrow-counterclockwise"></i>
-            <span class="sr-only">Recycle (restore)</span>
-        </button>
-    </form>
+    @if($canRestore)
+        <form method="POST" action="{{ route('materials.restore', ['type' => $item->material_type, 'id' => $item->id]) }}" class="inline">
+            @csrf
+            <button type="submit" class="btn btn-success btn-action" title="Recycle (restore)">
+                <i class="bi bi-arrow-counterclockwise"></i>
+                <span class="sr-only">Recycle (restore)</span>
+            </button>
+        </form>
+    @endif
 </div>

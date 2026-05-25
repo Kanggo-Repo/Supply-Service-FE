@@ -82,7 +82,6 @@ body.recycle-bin-lock .page-content {
     z-index: 12;
     flex: 1 1 auto;
     min-width: 0;
-    bottom: 0 !important;
 }
 
 .recycle-bulk-actions {
@@ -274,7 +273,7 @@ body.recycle-bin-lock .page-content {
     padding: 20px;
     border: 2px solid var(--recycle-accent-bg);
     background: var(--recycle-accent-bg);
-    border-radius: 0 0 12px 12px !important;
+    border-radius: 0 12px 12px 12px !important;
 }
 
 .material-tab-card .material-table-frame {

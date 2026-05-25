@@ -1556,18 +1556,6 @@ html.materials-booting .page-content {
                                 </a>
                             @endif
                         </form>
-                        {{-- <a href="{{ route($material['type'] . 's.create') }}"
-                           class="btn btn-accent-action open-modal">
-                            <i class="bi bi-plus-lg"></i> Tambah {{ $material['label'] }}
-                        </a> --}}
-                        {{-- <a href="{{ route($material['type'] . 's.create') }}"
-                           class="btn btn-accent-action open-inline-create"
-                           data-inline-type="{{ $material['type'] }}"
-                           data-inline-url="{{ route($material['type'] . 's.create') }}"
-                           data-inline-store-url="{{ route($material['type'] . 's.store') }}"
-                           data-inline-label="{{ $material['label'] }}">
-                            <i class="bi bi-plus-lg"></i> Tambah {{ $material['label'] }}
-                        </a> --}}
                     </div>
                 @endforeach
             </div>
@@ -2882,6 +2870,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!row) return;
         row.dataset.inlineLastEditedPrice = '';
         row.dataset.inlineExistingPhotoPath = '';
+        row.dataset.inlineStoreLocationId = '';
         row.querySelectorAll('[data-inline-field]').forEach(field => {
             if (field.tagName === 'SELECT') {
                 field.selectedIndex = 0;
@@ -2894,6 +2883,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function populateInlineRowFromSource(row, sourceRow) {
         if (!row || !sourceRow) return;
+        row.dataset.inlineStoreLocationId = readInlineSourceValue(sourceRow, 'store_location_id') || '';
         row.querySelectorAll('[data-inline-field]').forEach(field => {
             const fieldName = field.getAttribute('data-inline-field');
             if (!fieldName) return;
@@ -3147,6 +3137,11 @@ document.addEventListener('DOMContentLoaded', function() {
             appendAssociatedControlToInlinePayload(formData, control);
         });
 
+        const storeLocationId = String(row.dataset.inlineStoreLocationId || '').trim();
+        if (storeLocationId !== '' && !formData.has('store_location_id')) {
+            formData.append('store_location_id', storeLocationId);
+        }
+
         return formData;
     }
 
@@ -3255,6 +3250,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 recalculateInlineComputedFields(row);
                 syncNatNameField(row);
+
+                const storeInput = row?.querySelector('[data-inline-field="store"]');
+                if ((storeInput?.value || '').trim() !== '') {
+                    const storeResolution = await resolveInlineStoreLocation(row);
+                    if (!storeResolution?.ok) {
+                        e.preventDefault();
+                        if (typeof window.showToast === 'function') {
+                            window.showToast(
+                                storeResolution.message || 'Pilih alamat toko yang sesuai sebelum menyimpan material.',
+                                'error'
+                            );
+                        }
+                        return;
+                    }
+                }
 
                 e.preventDefault();
                 const confirmed = await showProjectConfirm({
@@ -3521,6 +3531,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function applyInlineAutocompleteSelection(input, list, option) {
         if (!input || !list) return;
         const fieldName = input.getAttribute('data-inline-field') || '';
+        const row = input.closest('tr');
         const normalizedOption = normalizeInlineAutocompleteOption(fieldName, option);
         if (!normalizedOption) return;
 
@@ -3540,6 +3551,15 @@ document.addEventListener('DOMContentLoaded', function() {
         input.value = displayValue;
         input.dispatchEvent(new Event('change', { bubbles: true }));
         hideInlineAutocompleteList(list);
+
+        if (fieldName === 'store' && row) {
+            setInlineStoreLocationId(row, '');
+            void autoFillAddressIfSingle(row);
+        }
+
+        if (fieldName === 'address' && row) {
+            void resolveInlineStoreLocation(row);
+        }
     }
 
     function selectInlineAutocompleteActive(input, list) {
@@ -3573,6 +3593,174 @@ document.addEventListener('DOMContentLoaded', function() {
         return {
             value: normalizedValue,
             label: normalizedLabel,
+        };
+    }
+
+    function normalizeInlineStoreLocationText(value) {
+        return String(value || '')
+            .trim()
+            .replace(/\s+/g, ' ')
+            .toLowerCase();
+    }
+
+    function setInlineStoreLocationId(row, value) {
+        if (!row) return;
+        row.dataset.inlineStoreLocationId = String(value ?? '').trim();
+    }
+
+    function getInlineStoreLocationId(row) {
+        if (!row) return '';
+
+        return String(row.dataset.inlineStoreLocationId || '').trim();
+    }
+
+    function matchInlineStoreLocationByAddress(locations, address) {
+        const normalizedAddress = normalizeInlineStoreLocationText(address);
+        if (!normalizedAddress || !Array.isArray(locations)) {
+            return null;
+        }
+
+        return locations.find((location) => {
+            const candidates = [
+                location?.resolved_address,
+                location?.address,
+                location?.formatted_address,
+                location?.full_address,
+            ];
+
+            return candidates.some((candidate) => normalizeInlineStoreLocationText(candidate) === normalizedAddress);
+        }) || null;
+    }
+
+    async function loadInlineStoreLocations(row, options = {}) {
+        const storeInput = row?.querySelector('[data-inline-field="store"]');
+        const addressInput = row?.querySelector('[data-inline-field="address"]');
+        const storeName = (storeInput?.value || '').trim();
+
+        if (!storeName) {
+            setInlineStoreLocationId(row, '');
+            return [];
+        }
+
+        const response = await fetch(
+            `/api/stores/locations-by-store?store=${encodeURIComponent(storeName)}&limit=20`,
+            { headers: { 'X-Requested-With': 'XMLHttpRequest' } }
+        );
+
+        const locations = await response.json();
+        if (!Array.isArray(locations)) {
+            setInlineStoreLocationId(row, '');
+            return [];
+        }
+
+        const selectedLocation = matchInlineStoreLocationByAddress(
+            locations,
+            options.selectedAddress ?? addressInput?.value ?? ''
+        );
+
+        if (selectedLocation?.id) {
+            setInlineStoreLocationId(row, selectedLocation.id);
+            return locations;
+        }
+
+        if (locations.length === 1) {
+            const onlyLocation = locations[0];
+            setInlineStoreLocationId(row, onlyLocation.id || '');
+            if (addressInput && options.autofillAddress !== false) {
+                const resolvedAddress = String(
+                    onlyLocation?.resolved_address
+                    || onlyLocation?.address
+                    || onlyLocation?.formatted_address
+                    || onlyLocation?.full_address
+                    || ''
+                ).trim();
+                if (resolvedAddress !== '') {
+                    addressInput.value = resolvedAddress;
+                }
+            }
+
+            return locations;
+        }
+
+        setInlineStoreLocationId(row, '');
+
+        return locations;
+    }
+
+    async function resolveInlineStoreLocation(row) {
+        const storeInput = row?.querySelector('[data-inline-field="store"]');
+        const addressInput = row?.querySelector('[data-inline-field="address"]');
+        const storeName = (storeInput?.value || '').trim();
+        const address = (addressInput?.value || '').trim();
+
+        if (!storeName) {
+            setInlineStoreLocationId(row, '');
+            return { ok: true, locations: [] };
+        }
+
+        const directLocations = await loadInlineStoreLocations(row, {
+            selectedAddress: address,
+            autofillAddress: true,
+        });
+        if (getInlineStoreLocationId(row) !== '') {
+            return { ok: true, locations: directLocations };
+        }
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const input = address !== '' ? `${storeName} - ${address}` : storeName;
+        const response = await fetch('/api/stores/quick-create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrfToken,
+            },
+            body: JSON.stringify({ input }),
+            credentials: 'same-origin',
+        });
+        const payload = await response.json().catch(() => ({}));
+
+        if (response.ok && payload?.id) {
+            setInlineStoreLocationId(row, payload.id);
+
+            const resolvedAddress = String(
+                payload?.resolved_address
+                || payload?.address
+                || payload?.formatted_address
+                || payload?.full_address
+                || address
+            ).trim();
+            if (addressInput && resolvedAddress !== '') {
+                addressInput.value = resolvedAddress;
+            }
+
+            return { ok: true, locations: [], payload };
+        }
+
+        if (response.status === 422 && payload?.requires_location_selection) {
+            const matchedLocation = matchInlineStoreLocationByAddress(payload.locations || [], address);
+            if (matchedLocation?.id) {
+                setInlineStoreLocationId(row, matchedLocation.id);
+                return { ok: true, locations: payload.locations || [], payload };
+            }
+
+            setInlineStoreLocationId(row, '');
+            return {
+                ok: false,
+                message: payload?.error || payload?.message || 'Pilih alamat toko yang sesuai sebelum menyimpan material.',
+                locations: Array.isArray(payload?.locations) ? payload.locations : [],
+                payload,
+            };
+        }
+
+        setInlineStoreLocationId(row, '');
+
+        return {
+            ok: response.ok,
+            message: payload?.error || payload?.message || 'Gagal memproses lokasi toko.',
+            locations: [],
+            payload,
         };
     }
 
@@ -3758,16 +3946,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!storeInput || !addressInput) return;
 
         const storeName = (storeInput.value || '').trim();
-        if (!storeName) return;
+        if (!storeName) {
+            setInlineStoreLocationId(row, '');
+            return;
+        }
 
         try {
-            const response = await fetch(
-                `/api/stores/addresses-by-store?store=${encodeURIComponent(storeName)}&limit=20`,
-                { headers: { 'X-Requested-With': 'XMLHttpRequest' } }
-            );
-            const addresses = await response.json();
-            if (Array.isArray(addresses) && addresses.length === 1) {
-                addressInput.value = addresses[0];
+            const locations = await loadInlineStoreLocations(row, { autofillAddress: true });
+            if (Array.isArray(locations) && locations.length === 1) {
                 addressInput.dispatchEvent(new Event('input', { bubbles: true }));
                 addressInput.dispatchEvent(new Event('change', { bubbles: true }));
             }
@@ -4115,6 +4301,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 input.addEventListener('input', schedule);
                 input.addEventListener('focus', scheduleAllOptions);
+                input.addEventListener('click', scheduleAllOptions);
                 input.addEventListener('change', scheduleAllOptions);
                 input.addEventListener('keydown', (event) => {
                     const list = getInlineAutocompleteList(input, resourceType, fieldName);
@@ -4160,7 +4347,22 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             if (fieldName === 'store') {
+                input.addEventListener('input', () => {
+                    setInlineStoreLocationId(row, '');
+                    if (!(input.value || '').trim()) {
+                        const addressInput = row.querySelector('[data-inline-field="address"]');
+                        if (addressInput) {
+                            addressInput.value = '';
+                        }
+                    }
+                });
                 input.addEventListener('change', () => autoFillAddressIfSingle(row));
+            }
+
+            if (fieldName === 'address') {
+                input.addEventListener('input', () => {
+                    setInlineStoreLocationId(row, '');
+                });
             }
         });
 
@@ -4270,6 +4472,14 @@ document.addEventListener('DOMContentLoaded', function() {
         bindInlineForm(inlineForm, inlineRow);
         bindInlinePhotoPicker(inlineRow);
         syncInlinePhotoButtonState(inlineRow);
+
+        const firstAutocompleteInput = inlineRow.querySelector('.material-inline-input[data-inline-field]');
+        if (firstAutocompleteInput instanceof HTMLInputElement || firstAutocompleteInput instanceof HTMLTextAreaElement) {
+            window.requestAnimationFrame(() => {
+                firstAutocompleteInput.focus({ preventScroll: true });
+                firstAutocompleteInput.click();
+            });
+        }
     }
 
     document.body.addEventListener('click', function(e) {

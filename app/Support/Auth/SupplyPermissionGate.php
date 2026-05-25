@@ -21,6 +21,29 @@ class SupplyPermissionGate
     }
 
     /**
+     * @param  list<string>  $permissions
+     */
+    public function allowsAny(?User $user, array $permissions): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        $resolvedPermissions = $this->permissions($user);
+        if ($resolvedPermissions === []) {
+            return true;
+        }
+
+        foreach ($permissions as $permission) {
+            if (in_array($permission, $resolvedPermissions, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @return list<string>
      */
     public function permissions(?User $user): array

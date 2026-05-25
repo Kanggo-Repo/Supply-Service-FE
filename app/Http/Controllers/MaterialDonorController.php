@@ -11,7 +11,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 use Throwable;
 
 class MaterialDonorController extends Controller
@@ -22,7 +21,7 @@ class MaterialDonorController extends Controller
     private const RESOURCE_MAP = [
         'bricks' => ['family' => 'brick', 'variable' => 'brick', 'view' => 'bricks'],
         'cements' => ['family' => 'cement', 'variable' => 'cement', 'view' => 'cements'],
-        'nats' => ['family' => 'nat', 'variable' => 'cement', 'view' => 'cements'],
+        'nats' => ['family' => 'nat', 'variable' => 'nat', 'view' => 'nats'],
         'sands' => ['family' => 'sand', 'variable' => 'sand', 'view' => 'sands'],
         'cats' => ['family' => 'cat', 'variable' => 'cat', 'view' => 'cats'],
         'ceramics' => ['family' => 'ceramic', 'variable' => 'ceramic', 'view' => 'ceramics'],
@@ -176,6 +175,28 @@ class MaterialDonorController extends Controller
             ->with('updated_material', $payload['updated_material']);
     }
 
+    public function destroy(Request $request, int $id): JsonResponse
+    {
+        $definition = $this->resourceDefinition((string) $request->route('resource'));
+        $family = $definition['family'];
+
+        try {
+            $this->supplyServiceClient->deleteMaterial($family, $id, $request->user());
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menghapus data: '.$exception->getMessage(),
+            ], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Material berhasil dihapus.',
+        ]);
+    }
+
     public function fieldValues(Request $request, string $field): JsonResponse
     {
         $families = $this->familiesFromRequest((string) $request->route('resource'), $request);
@@ -187,42 +208,9 @@ class MaterialDonorController extends Controller
             ->map(fn (mixed $value) => is_string($value) ? trim($value) : $value)
             ->all();
 
-        $values = collect($families)
-            ->flatMap(function (string $family) use ($request, $search, $filters): array {
-                $payload = $this->supplyServiceClient->listMaterials($family, [
-                    'search' => $search,
-                    'perPage' => 200,
-                ], $request->user());
-
-                return is_array($payload['data'] ?? null) ? array_values($payload['data']) : [];
-            })
-            ->filter(function (array $item) use ($filters, $field): bool {
-                foreach ($filters as $filterField => $filterValue) {
-                    if ($filterField === $field) {
-                        continue;
-                    }
-
-                    if ($this->normalizeLookupValue($item[$filterField] ?? null) !== $this->normalizeLookupValue($filterValue)) {
-                        return false;
-                    }
-                }
-
-                return true;
-            })
-            ->map(fn (array $item): ?string => $this->stringifyLookupValue($item[$field] ?? null))
-            ->filter(fn (?string $value): bool => $value !== null && $value !== '')
-            ->filter(function (string $value) use ($search): bool {
-                if ($search === '') {
-                    return true;
-                }
-
-                return str_contains(strtolower($value), strtolower($search));
-            })
-            ->unique()
-            ->sort(fn (string $left, string $right) => strnatcasecmp($left, $right))
-            ->values()
-            ->take($limit)
-            ->all();
+        $values = empty($filters)
+            ? $this->fieldValuesFromMetadata($families, $field, $search, $limit, $request)
+            : $this->fieldValuesFromRows($families, $field, $filters, $search, $limit, $request);
 
         return response()->json($values);
     }
@@ -234,7 +222,7 @@ class MaterialDonorController extends Controller
         ], $request->user());
 
         return response()->json(
-            collect((array) ($payload['data'] ?? []))
+            collect($this->extractListPayload($payload))
                 ->map(fn (mixed $item): ?string => $this->extractSuggestionText($item, ['store', 'name', 'label']))
                 ->filter()
                 ->unique()
@@ -251,13 +239,37 @@ class MaterialDonorController extends Controller
         ], $request->user());
 
         return response()->json(
-            collect((array) ($payload['data'] ?? []))
+            collect($this->extractListPayload($payload))
                 ->map(fn (mixed $item): ?string => $this->extractSuggestionText($item, ['address', 'resolved_address', 'label']))
                 ->filter()
                 ->unique()
                 ->values()
                 ->all(),
         );
+    }
+
+    public function locationsByStore(Request $request): JsonResponse
+    {
+        $payload = $this->supplyServiceClient->locationsByStore([
+            'store' => $request->query('store'),
+            'limit' => $request->query('limit'),
+        ], $request->user());
+
+        return response()->json(
+            collect($this->extractListPayload($payload))
+                ->map(fn (mixed $item): array => is_array($item) ? $item : [])
+                ->values()
+                ->all(),
+        );
+    }
+
+    public function quickCreateStoreLocation(Request $request): JsonResponse
+    {
+        $response = $this->supplyServiceClient->quickCreateStoreLocationResponse([
+            'input' => $request->input('input'),
+        ], $request->user());
+
+        return response()->json($response->json() ?? [], $response->status());
     }
 
     /**
@@ -377,7 +389,8 @@ class MaterialDonorController extends Controller
             $attributes['photo_url'] = str_starts_with($photo, 'http://') || str_starts_with($photo, 'https://') ? $photo : null;
         }
 
-        return new class($attributes) {
+        return new class($attributes)
+        {
             /**
              * @param  array<string, mixed>  $attributes
              */
@@ -504,6 +517,80 @@ class MaterialDonorController extends Controller
         return trim((string) $value);
     }
 
+    /**
+     * @param  list<string>  $families
+     * @return list<string>
+     */
+    private function fieldValuesFromMetadata(array $families, string $field, string $search, int $limit, Request $request): array
+    {
+        return collect($families)
+            ->flatMap(function (string $family) use ($field, $request): array {
+                $payload = $this->supplyServiceClient->materialFilterMetadata($family, [$field], $request->user());
+
+                return collect((array) data_get($payload, "data.fields.{$field}", []))
+                    ->map(fn (mixed $value): ?string => $this->stringifyLookupValue($value))
+                    ->filter()
+                    ->values()
+                    ->all();
+            })
+            ->filter(function (string $value) use ($search): bool {
+                if ($search === '') {
+                    return true;
+                }
+
+                return str_contains(strtolower($value), strtolower($search));
+            })
+            ->unique()
+            ->sort(fn (string $left, string $right) => strnatcasecmp($left, $right))
+            ->values()
+            ->take($limit)
+            ->all();
+    }
+
+    /**
+     * @param  list<string>  $families
+     * @param  array<string, mixed>  $filters
+     * @return list<string>
+     */
+    private function fieldValuesFromRows(array $families, string $field, array $filters, string $search, int $limit, Request $request): array
+    {
+        return collect($families)
+            ->flatMap(function (string $family) use ($request): array {
+                $payload = $this->supplyServiceClient->listMaterials($family, [
+                    'perPage' => 500,
+                ], $request->user());
+
+                return is_array($payload['data'] ?? null) ? array_values($payload['data']) : [];
+            })
+            ->filter(function (array $item) use ($filters, $field): bool {
+                foreach ($filters as $filterField => $filterValue) {
+                    if ($filterField === $field) {
+                        continue;
+                    }
+
+                    if ($this->normalizeLookupValue($item[$filterField] ?? null) !== $this->normalizeLookupValue($filterValue)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            })
+            ->map(fn (array $item): ?string => $this->stringifyLookupValue($item[$field] ?? null))
+            ->filter(fn (?string $value): bool => $value !== null && $value !== '')
+            ->filter(function (string $value) use ($search): bool {
+                if ($search === '') {
+                    return true;
+                }
+
+                return str_contains(strtolower($value), strtolower($search));
+            })
+            ->unique()
+            ->sort(fn (string $left, string $right) => strnatcasecmp($left, $right))
+            ->values()
+            ->take($limit)
+            ->all();
+    }
+
     private function extractSuggestionText(mixed $item, array $keys): ?string
     {
         if (is_string($item)) {
@@ -525,6 +612,18 @@ class MaterialDonorController extends Controller
 
         return null;
     }
+
+    /**
+     * @param  array<string|int, mixed>  $payload
+     * @return list<mixed>
+     */
+    private function extractListPayload(array $payload): array
+    {
+        $data = $payload['data'] ?? $payload;
+
+        return is_array($data) ? array_values($data) : [];
+    }
+
     /**
      * @return array<string, mixed>
      */

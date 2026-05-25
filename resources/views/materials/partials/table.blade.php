@@ -2068,6 +2068,7 @@
                         data-inline-field-coverage-per-package="{{ $item->coverage_per_package ?? '' }}"
                         data-inline-field-store="{{ $item->store ?? '' }}"
                         data-inline-field-address="{{ $item->address ?? '' }}"
+                        data-inline-field-store-location-id="{{ $item->store_location_id ?? '' }}"
                         data-inline-field-price-per-piece="{{ $inlinePricePerPiece }}"
                         data-inline-field-package-price="{{ $item->package_price ?? '' }}"
                         data-inline-field-purchase-price="{{ $item->purchase_price ?? '' }}"
@@ -2100,12 +2101,9 @@
                                 <a href="{{ route($rowMaterialType . 's.show', $item->id) }}" class="btn btn-primary btn-action open-modal" title="Detail">
                                     <i class="bi bi-eye"></i>
                                 </a>
-                                {{-- <a href="{{ route($rowMaterialType . 's.edit', $item->id) }}" class="btn btn-warning btn-action open-modal" title="Edit"> --}}
                                 <a href="{{ route($rowMaterialType . 's.edit', $item->id) }}"
                                     class="btn btn-warning btn-action open-inline-edit"
-                                    data-inline-type="{{ $rowMaterialType }}"
-                                    data-inline-url="{{ route($rowMaterialType . 's.edit', $item->id) }}"
-                                    data-inline-label="{{ $material['label'] }}"
+                                    data-inline-type="{{ $material['type'] }}"
                                     title="Edit">
                                     <i class="bi bi-pencil-square"></i>
                                 </a>
@@ -2308,7 +2306,7 @@
             <!-- Right Area: Recycle Bin Button (Only for materials/index) -->
             @if(!(isset($isStoreLocation) && $isStoreLocation))
             <div class="material-footer-right" style="justify-content: flex-end;">
-                @if(auth()->check() && auth()->user()->can('materials.recycle-bin.view'))
+                @if(auth()->check() && app(\App\Support\Auth\SupplyPermissionGate::class)->allows(auth()->user(), 'materials.recycle-bin.view'))
                 <a href="{{ route('materials.recycle-bin') }}" class="inline-flex items-center px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg transition" title="Lihat recycle bin material">
                     <i class="bi bi-trash"></i>
                 </a>

@@ -4,9 +4,8 @@ namespace App\Services\Supply;
 
 use App\Models\User;
 use App\Support\Auth\SupplyPermissionGate;
-use App\Support\Supply\SupplyMaterialCatalog;
-use Illuminate\Http\Client\Response;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -85,6 +84,17 @@ class SupplyServiceClient
     }
 
     /**
+     * @param  array<string, mixed>  $filters
+     * @return array<string, mixed>
+     */
+    public function storeLocationMaterials(int $storeId, int $locationId, array $filters, ?User $user): array
+    {
+        $query = http_build_query(array_filter($filters, static fn (mixed $value): bool => $value !== null && $value !== ''), '', '&', PHP_QUERY_RFC3986);
+
+        return $this->get("api/v1/stores/{$storeId}/locations/{$locationId}/materials".($query !== '' ? '?'.$query : ''), $user);
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
      */
@@ -129,11 +139,11 @@ class SupplyServiceClient
     /**
      * @return array<string, mixed>
      */
-    public function materialFilterMetadata(string $family, ?User $user): array
+    public function materialFilterMetadata(string $family, array $fields, ?User $user): array
     {
         $query = http_build_query([
             'family' => $family,
-            'fields' => SupplyMaterialCatalog::suggestionFields($family),
+            'fields' => $fields,
         ], '', '&', PHP_QUERY_RFC3986);
 
         return $this->get('api/v1/reference/materials/filter-metadata?'.$query, $user);
@@ -176,6 +186,14 @@ class SupplyServiceClient
     public function materialHistory(string $family, int $id, ?User $user): array
     {
         return $this->get("api/v1/materials/{$family}/{$id}/history", $user);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function materialRecycleBin(?User $user): array
+    {
+        return $this->get('api/v1/materials/recycle-bin', $user);
     }
 
     /**
@@ -260,6 +278,55 @@ class SupplyServiceClient
     }
 
     /**
+     * @param  array<string, mixed>  $filters
+     * @return array<string, mixed>
+     */
+    public function locationsByStore(array $filters, ?User $user): array
+    {
+        $query = http_build_query(array_filter($filters, static fn (mixed $value): bool => $value !== null && $value !== ''), '', '&', PHP_QUERY_RFC3986);
+
+        return $this->get('api/v1/store-search/locations-by-store'.($query !== '' ? '?'.$query : ''), $user);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public function quickCreateStoreLocationResponse(array $payload, ?User $user): Response
+    {
+        return $this->request($user)->post($this->url('api/v1/store-search/quick-create'), $payload);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function restoreRecycledMaterial(string $family, int $id, ?User $user): array
+    {
+        return $this->write('POST', "api/v1/materials/recycle-bin/{$family}/{$id}/restore", [], $user);
+    }
+
+    public function forceDeleteRecycledMaterial(string $family, int $id, ?User $user): void
+    {
+        $this->write('DELETE', "api/v1/materials/recycle-bin/{$family}/{$id}", [], $user);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function storeSearchRadiusSettings(?User $user): array
+    {
+        return $this->get('api/v1/settings/store-search-radius', $user);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    public function updateStoreSearchRadiusSettings(array $payload, ?User $user): array
+    {
+        return $this->write('PUT', 'api/v1/settings/store-search-radius', $payload, $user);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function get(string $path, ?User $user): array
@@ -302,6 +369,7 @@ class SupplyServiceClient
             return $headers;
         }
 
+        $headers['X-Actor-Id'] = (string) $user->getAuthIdentifier();
         $headers['X-Actor-Name'] = (string) $user->name;
         $headers['X-Actor-Email'] = (string) $user->email;
         $headers['X-Actor-Auth-Provider'] = (string) ($user->auth_provider ?? '');

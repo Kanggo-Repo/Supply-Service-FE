@@ -1,11 +1,12 @@
 <?php
 
-use App\Http\Controllers\MaterialManagementController;
 use App\Http\Controllers\MaterialDonorController;
+use App\Http\Controllers\MaterialManagementController;
+use App\Http\Controllers\MaterialRecycleBinDonorController;
 use App\Http\Controllers\MonolithAuthController;
 use App\Http\Controllers\StoreDonorController;
 use App\Http\Controllers\StoreLocationDonorController;
-use App\Http\Controllers\SupplyWorkspaceController;
+use App\Http\Controllers\StoreSearchRadiusSettingController;
 use App\Http\Controllers\UnitManagementController;
 use Illuminate\Support\Facades\Route;
 
@@ -43,15 +44,21 @@ Route::middleware('monolith.auth')->group(function () {
         ->middleware('supply.permission:materials.delete')
         ->name('materials.destroy');
 
-    Route::get('/materials/recycle-bin', fn () => redirect()->route('materials.index'))
-        ->middleware('supply.permission:materials.view')
+    Route::get('/materials/recycle-bin', [MaterialRecycleBinDonorController::class, 'index'])
+        ->middleware('supply.permission:materials.recycle-bin.view')
         ->name('materials.recycle-bin');
-    Route::post('/materials/{type}/{id}/restore', fn () => redirect()->route('materials.index'))
-        ->middleware('supply.permission:materials.update')
+    Route::post('/materials/{type}/{id}/restore', [MaterialRecycleBinDonorController::class, 'restore'])
+        ->middleware('supply.permission:materials.recycle-bin.restore')
         ->name('materials.restore');
-    Route::delete('/materials/{type}/{id}/force-delete', fn () => redirect()->route('materials.index'))
-        ->middleware('supply.permission:materials.delete')
+    Route::delete('/materials/{type}/{id}/force-delete', [MaterialRecycleBinDonorController::class, 'forceDelete'])
+        ->middleware('supply.permission:materials.recycle-bin.delete')
         ->name('materials.force-delete');
+    Route::post('/materials/bulk/restore', [MaterialRecycleBinDonorController::class, 'bulkRestore'])
+        ->middleware('supply.permission:materials.recycle-bin.restore')
+        ->name('materials.bulk-restore');
+    Route::post('/materials/bulk/force-delete', [MaterialRecycleBinDonorController::class, 'bulkForceDelete'])
+        ->middleware('supply.permission:materials.recycle-bin.delete')
+        ->name('materials.bulk-force-delete');
 
     foreach ([
         'bricks',
@@ -94,6 +101,10 @@ Route::middleware('monolith.auth')->group(function () {
             ->middleware('supply.permission:materials.view')
             ->defaults('resource', $resource)
             ->name("{$resource}.field-values");
+        Route::delete("/api/v1/{$resource}/{id}", [MaterialDonorController::class, 'destroy'])
+            ->middleware('supply.permission:materials.delete')
+            ->defaults('resource', $resource)
+            ->name("{$resource}.api-destroy");
         Route::get("/api/{$resource}/all-stores", [MaterialDonorController::class, 'allStores'])
             ->middleware('supply.permission:materials.view')
             ->defaults('resource', $resource)
@@ -110,6 +121,12 @@ Route::middleware('monolith.auth')->group(function () {
     Route::get('/api/stores/addresses-by-store', [MaterialDonorController::class, 'addressesByStore'])
         ->middleware('supply.permission:materials.view')
         ->name('stores.addresses-by-store');
+    Route::get('/api/stores/locations-by-store', [MaterialDonorController::class, 'locationsByStore'])
+        ->middleware('supply.permission:materials.view')
+        ->name('stores.locations-by-store');
+    Route::post('/api/stores/quick-create', [MaterialDonorController::class, 'quickCreateStoreLocation'])
+        ->middleware('supply.permission:materials.view')
+        ->name('stores.quick-create');
 
     Route::get('/stores', [StoreDonorController::class, 'index'])
         ->middleware('supply.permission:stores.view')
@@ -151,6 +168,13 @@ Route::middleware('monolith.auth')->group(function () {
     Route::get('/stores/{store}/locations/{location}/materials', [StoreLocationDonorController::class, 'materials'])
         ->middleware('supply.permission:stores.view')
         ->name('store-locations.materials');
+
+    Route::get('/settings/store-search-radius', [StoreSearchRadiusSettingController::class, 'index'])
+        ->middleware('supply.permission:store-search-radius.view')
+        ->name('settings.store-search-radius.index');
+    Route::post('/settings/store-search-radius', [StoreSearchRadiusSettingController::class, 'store'])
+        ->middleware('supply.permission:store-search-radius.update')
+        ->name('settings.store-search-radius.store');
 
     Route::get('/units', [UnitManagementController::class, 'index'])
         ->middleware('supply.permission:units.view')

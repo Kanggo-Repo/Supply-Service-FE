@@ -74,6 +74,33 @@ class MaterialDonorCompatibilityTest extends TestCase
                     ],
                 ],
             ], 200),
+            'http://supply-be.test/api/v1/materials/nat/18' => Http::response([
+                'data' => [
+                    'id' => 18,
+                    'nat_name' => 'Nat Putih Premium',
+                    'type' => 'Nat Keramik',
+                    'brand' => 'Nat Alpha',
+                    'sub_brand' => 'Premium',
+                    'store' => 'TB Nat',
+                    'address' => 'Jl. Nat 1',
+                    'package_unit' => 'kg',
+                    'package_weight_gross' => 5,
+                    'package_price' => 45000,
+                ],
+            ], 200),
+            'http://supply-be.test/api/v1/materials/nat/18/history' => Http::response([
+                'data' => [
+                    [
+                        'id' => 280,
+                        'action' => 'updated',
+                        'edited_at' => '2026-05-22T09:00:00+07:00',
+                        'user' => ['name' => 'Operator Supply'],
+                        'changes' => [
+                            'brand' => ['from' => 'Nat Lama', 'to' => 'Nat Alpha'],
+                        ],
+                    ],
+                ],
+            ], 200),
         ]);
 
         $brickCreateResponse = $this->actingAs($user)->get(route('bricks.create'));
@@ -88,10 +115,21 @@ class MaterialDonorCompatibilityTest extends TestCase
         $cementCreateResponse->assertSee('Sak');
         $cementCreateResponse->assertSee('/js/cement-form.js', false);
 
+        $natCreateResponse = $this->actingAs($user)->get(route('nats.create'));
+        $natCreateResponse->assertOk();
+        $natCreateResponse->assertSee('id="natForm"', false);
+        $natCreateResponse->assertSee('kg');
+        $natCreateResponse->assertSee('/js/nat-form.js', false);
+
         $brickShowResponse = $this->actingAs($user)->get(route('bricks.show', 12));
         $brickShowResponse->assertOk();
         $brickShowResponse->assertSee('Brick Alpha');
         $brickShowResponse->assertSee('Riwayat Perubahan');
+
+        $natShowResponse = $this->actingAs($user)->get(route('nats.show', 18));
+        $natShowResponse->assertOk();
+        $natShowResponse->assertSee('Nat Putih Premium');
+        $natShowResponse->assertSee('Riwayat Perubahan');
     }
 
     public function test_donor_js_helper_routes_bridge_to_supply_service(): void
@@ -101,6 +139,35 @@ class MaterialDonorCompatibilityTest extends TestCase
         ]);
 
         Http::fake([
+            'http://supply-be.test/api/v1/reference/materials/filter-metadata?family=brick&fields%5B0%5D=type' => Http::response([
+                'data' => [
+                    'family' => 'brick',
+                    'fields' => [
+                        'type' => ['Roster', 'Tempel'],
+                    ],
+                ],
+            ], 200),
+            'http://supply-be.test/api/v1/materials/brick?perPage=500' => Http::response([
+                'data' => [
+                    [
+                        'id' => 1,
+                        'type' => 'Roster',
+                        'brand' => 'Brick Alpha',
+                        'form' => 'Persegi',
+                        'store' => 'TB Alpha',
+                        'address' => 'Jl. Mawar 1',
+                    ],
+                    [
+                        'id' => 2,
+                        'type' => 'Tempel',
+                        'brand' => 'Brick Beta',
+                        'form' => 'Tempel',
+                        'store' => 'TB Beta',
+                        'address' => 'Jl. Melati 2',
+                    ],
+                ],
+                'total' => 2,
+            ], 200),
             'http://supply-be.test/api/v1/materials/brick*' => Http::response([
                 'data' => [
                     [
@@ -123,16 +190,27 @@ class MaterialDonorCompatibilityTest extends TestCase
                 'total' => 2,
             ], 200),
             'http://supply-be.test/api/v1/store-search/all-stores*' => Http::response([
-                'data' => [
-                    ['store' => 'TB Alpha'],
-                    ['store' => 'TB Beta'],
-                ],
+                'TB Alpha',
+                'TB Beta',
             ], 200),
             'http://supply-be.test/api/v1/store-search/addresses-by-store*' => Http::response([
-                'data' => [
-                    ['address' => 'Jl. Mawar 1'],
-                    ['address' => 'Jl. Mawar 2'],
+                'Jl. Mawar 1',
+                'Jl. Mawar 2',
+            ], 200),
+            'http://supply-be.test/api/v1/store-search/locations-by-store*' => Http::response([
+                [
+                    'id' => 9,
+                    'store_name' => 'TB Alpha',
+                    'address' => 'Jl. Mawar 1',
+                    'resolved_address' => 'Jl. Mawar 1',
                 ],
+            ], 200),
+            'http://supply-be.test/api/v1/store-search/quick-create' => Http::response([
+                'id' => 9,
+                'store_name' => 'TB Alpha',
+                'address' => 'Jl. Mawar 1',
+                'resolved_address' => 'Jl. Mawar 1',
+                'display_text' => 'TB Alpha - Jl. Mawar 1',
             ], 200),
         ]);
 
@@ -151,7 +229,52 @@ class MaterialDonorCompatibilityTest extends TestCase
             ->assertOk()
             ->assertExactJson(['Jl. Mawar 1', 'Jl. Mawar 2']);
 
+        $locationsResponse = $this->actingAs($user)->getJson('/api/stores/locations-by-store?store=TB Alpha&limit=20');
+        $locationsResponse
+            ->assertOk()
+            ->assertJsonPath('0.id', 9)
+            ->assertJsonPath('0.store_name', 'TB Alpha');
+
+        $quickCreateResponse = $this->actingAs($user)->postJson('/api/stores/quick-create', [
+            'input' => 'TB Alpha - Jl. Mawar 1',
+        ]);
+        $quickCreateResponse
+            ->assertOk()
+            ->assertJsonPath('id', 9)
+            ->assertJsonPath('display_text', 'TB Alpha - Jl. Mawar 1');
+
         Http::assertSent(fn (ClientRequest $request) => $request->url() === 'http://supply-be.test/api/v1/store-search/all-stores?search=tb');
         Http::assertSent(fn (ClientRequest $request) => $request->url() === 'http://supply-be.test/api/v1/store-search/addresses-by-store?store=TB%20Alpha&search=mawar');
+        Http::assertSent(fn (ClientRequest $request) => $request->url() === 'http://supply-be.test/api/v1/store-search/locations-by-store?store=TB%20Alpha&limit=20');
+        Http::assertSent(fn (ClientRequest $request) => $request->url() === 'http://supply-be.test/api/v1/reference/materials/filter-metadata?family=brick&fields%5B0%5D=type');
+        Http::assertSent(fn (ClientRequest $request) => $request->url() === 'http://supply-be.test/api/v1/store-search/quick-create'
+            && $request->method() === 'POST'
+            && data_get($request->data(), 'input') === 'TB Alpha - Jl. Mawar 1');
+    }
+
+    public function test_history_restore_route_bridges_to_supply_service(): void
+    {
+        $user = User::factory()->create([
+            'permission_snapshot' => ['materials.update'],
+        ]);
+
+        Http::fake([
+            'http://supply-be.test/api/v1/materials/brick/12/history/200/restore' => Http::response([
+                'message' => 'Material history restored successfully',
+                'changed' => true,
+                'data' => [
+                    'id' => 12,
+                    'family' => 'brick',
+                ],
+            ], 200),
+        ]);
+
+        $response = $this->from('/bricks/12')->actingAs($user)->post('/bricks/12/history/200/restore');
+
+        $response->assertRedirect(route('materials.index', ['tab' => 'brick']));
+        $response->assertSessionHas('success');
+
+        Http::assertSent(fn (ClientRequest $request) => $request->method() === 'POST'
+            && $request->url() === 'http://supply-be.test/api/v1/materials/brick/12/history/200/restore');
     }
 }
