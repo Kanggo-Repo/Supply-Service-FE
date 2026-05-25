@@ -19,13 +19,61 @@ class StoreDonorProjectionService
      */
     public function listStores(array $filters, ?User $user): Collection
     {
+        return $this->paginateStores($filters, $user)['data'];
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     * @return array{data: Collection<int, Store>, current_page: int, per_page: int, total: int, last_page: int, next_page: int|null}
+     */
+    public function paginateStores(array $filters, ?User $user): array
+    {
         $payload = $this->supplyServiceClient->listStores($filters, $user);
 
-        return collect((array) ($payload['data'] ?? []))
-            ->map(function (mixed $storeRow) use ($user): ?Store {
-                $storeId = (int) data_get($storeRow, 'id', 0);
+        $stores = $this->hydrateStoreCollection((array) ($payload['data'] ?? []));
+        $currentPage = max(1, (int) ($payload['current_page'] ?? 1));
+        $lastPage = max(1, (int) ($payload['last_page'] ?? 1));
+        $perPage = max(1, (int) ($payload['per_page'] ?? $stores->count() ?: 1));
+        $total = max(0, (int) ($payload['total'] ?? $stores->count()));
 
-                return $storeId > 0 ? $this->showStore($storeId, $user) : null;
+        return [
+            'data' => $stores,
+            'current_page' => $currentPage,
+            'per_page' => $perPage,
+            'total' => $total,
+            'last_page' => $lastPage,
+            'next_page' => $currentPage < $lastPage ? $currentPage + 1 : null,
+        ];
+    }
+
+    /**
+     * @param  list<mixed>  $rows
+     * @return Collection<int, Store>
+     */
+    private function hydrateStoreCollection(array $rows): Collection
+    {
+        return collect($rows)
+            ->map(function (mixed $storeRow): ?Store {
+                $data = is_array($storeRow) ? $storeRow : [];
+                $storeId = (int) ($data['id'] ?? 0);
+                if ($storeId <= 0) {
+                    return null;
+                }
+
+                $store = $this->hydrateStore($data);
+                $locations = collect((array) ($data['locations'] ?? []))
+                    ->map(function (mixed $locationRow): ?StoreLocation {
+                        $locationData = is_array($locationRow) ? $locationRow : [];
+                        $locationId = (int) ($locationData['id'] ?? 0);
+
+                        return $locationId > 0 ? $this->hydrateLocation($locationData) : null;
+                    })
+                    ->filter()
+                    ->values();
+
+                $store->setRelation('locations', $locations);
+
+                return $this->applyStoreSummary($store);
             })
             ->filter()
             ->values();

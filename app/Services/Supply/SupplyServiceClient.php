@@ -139,6 +139,14 @@ class SupplyServiceClient
     /**
      * @return array<string, mixed>
      */
+    public function materialSummary(?User $user): array
+    {
+        return $this->get('api/v1/materials/summary', $user);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function materialFilterMetadata(string $family, array $fields, ?User $user): array
     {
         $query = http_build_query([

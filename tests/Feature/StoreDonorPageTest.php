@@ -31,59 +31,45 @@ class StoreDonorPageTest extends TestCase
         ]);
 
         Http::fake([
-            'http://supply-be.test/api/v1/stores?perPage=100*' => Http::response([
+            'http://supply-be.test/api/v1/stores*' => Http::response([
                 'data' => [
-                    ['id' => 1, 'name' => 'TB Alpha', 'location_count' => 2, 'material_availability_count' => 7],
-                ],
-                'total' => 1,
-            ], 200),
-            'http://supply-be.test/api/v1/stores/1' => Http::response([
-                'data' => [
-                    'id' => 1,
-                    'name' => 'TB Alpha',
-                    'location_count' => 2,
-                    'material_availability_count' => 7,
-                    'locations' => [
-                        ['id' => 11, 'store_id' => 1, 'address' => 'Jl. Mawar 1', 'resolved_address' => 'Jl. Mawar 1', 'city' => 'Bandung', 'province' => 'Jawa Barat', 'material_availabilities_count' => 5],
-                        ['id' => 12, 'store_id' => 1, 'address' => 'Jl. Melati 2', 'resolved_address' => 'Jl. Melati 2', 'city' => 'Bandung', 'province' => 'Jawa Barat', 'material_availabilities_count' => 2],
+                    [
+                        'id' => 1,
+                        'name' => 'TB Alpha',
+                        'location_count' => 2,
+                        'material_availability_count' => 7,
+                        'resolved_material_count' => 7,
+                        'resolved_branch_count' => 2,
+                        'has_missing_map_coordinates' => true,
+                        'missing_map_branch_count' => 1,
+                        'primary_location' => [
+                            'id' => 11,
+                            'store_id' => 1,
+                            'address' => 'Jl. Mawar 1',
+                            'resolved_address' => 'Jl. Mawar 1, Coblong, Bandung',
+                            'district' => 'Coblong',
+                            'city' => 'Bandung',
+                            'province' => 'Jawa Barat',
+                            'latitude' => -6.8915,
+                            'longitude' => 107.6107,
+                            'place_id' => 'place-11',
+                            'formatted_address' => 'Jl. Mawar 1, Coblong, Bandung',
+                            'contact_name' => 'Budi',
+                            'contact_phone' => '08123456789',
+                            'material_availabilities_count' => 5,
+                            'resolved_material_count' => 5,
+                            'has_missing_map_coordinates' => false,
+                        ],
+                        'locations' => [
+                            ['id' => 11, 'store_id' => 1, 'address' => 'Jl. Mawar 1', 'resolved_address' => 'Jl. Mawar 1, Coblong, Bandung', 'district' => 'Coblong', 'city' => 'Bandung', 'province' => 'Jawa Barat', 'latitude' => -6.8915, 'longitude' => 107.6107, 'place_id' => 'place-11', 'formatted_address' => 'Jl. Mawar 1, Coblong, Bandung', 'contact_name' => 'Budi', 'contact_phone' => '08123456789', 'material_availabilities_count' => 5],
+                            ['id' => 12, 'store_id' => 1, 'address' => 'Jl. Melati 2', 'resolved_address' => 'Jl. Melati 2', 'district' => 'Sukajadi', 'city' => 'Bandung', 'province' => 'Jawa Barat', 'latitude' => null, 'longitude' => null, 'place_id' => null, 'formatted_address' => null, 'contact_name' => '', 'contact_phone' => '', 'material_availabilities_count' => 2],
+                        ],
                     ],
                 ],
-            ], 200),
-            'http://supply-be.test/api/v1/stores/1/locations/11' => Http::response([
-                'data' => [
-                    'id' => 11,
-                    'store_id' => 1,
-                    'address' => 'Jl. Mawar 1',
-                    'district' => 'Coblong',
-                    'city' => 'Bandung',
-                    'province' => 'Jawa Barat',
-                    'latitude' => -6.8915,
-                    'longitude' => 107.6107,
-                    'place_id' => 'place-11',
-                    'formatted_address' => 'Jl. Mawar 1, Coblong, Bandung',
-                    'resolved_address' => 'Jl. Mawar 1, Coblong, Bandung',
-                    'contact_name' => 'Budi',
-                    'contact_phone' => '08123456789',
-                    'material_availabilities_count' => 5,
-                ],
-            ], 200),
-            'http://supply-be.test/api/v1/stores/1/locations/12' => Http::response([
-                'data' => [
-                    'id' => 12,
-                    'store_id' => 1,
-                    'address' => 'Jl. Melati 2',
-                    'district' => 'Sukajadi',
-                    'city' => 'Bandung',
-                    'province' => 'Jawa Barat',
-                    'latitude' => null,
-                    'longitude' => null,
-                    'place_id' => null,
-                    'formatted_address' => null,
-                    'resolved_address' => 'Jl. Melati 2',
-                    'contact_name' => '',
-                    'contact_phone' => '',
-                    'material_availabilities_count' => 2,
-                ],
+                'current_page' => 1,
+                'per_page' => 50,
+                'total' => 1,
+                'last_page' => 1,
             ], 200),
         ]);
 
@@ -96,9 +82,80 @@ class StoreDonorPageTest extends TestCase
         $response->assertSee('Bandung');
         $response->assertSee('data-google-maps-api-key="test-google-key"', false);
 
-        Http::assertSent(fn (ClientRequest $request) => $request->url() === 'http://supply-be.test/api/v1/stores?perPage=100');
-        Http::assertSent(fn (ClientRequest $request) => $request->url() === 'http://supply-be.test/api/v1/stores/1');
-        Http::assertSent(fn (ClientRequest $request) => $request->url() === 'http://supply-be.test/api/v1/stores/1/locations/11');
+        Http::assertSent(function (ClientRequest $request) {
+            if (! str_starts_with($request->url(), 'http://supply-be.test/api/v1/stores')) {
+                return false;
+            }
+
+            parse_str(parse_url($request->url(), PHP_URL_QUERY) ?? '', $query);
+
+            return (int) ($query['page'] ?? 0) === 1
+                && (int) ($query['perPage'] ?? 0) === 50;
+        });
+        Http::assertNotSent(fn (ClientRequest $request) => $request->url() === 'http://supply-be.test/api/v1/stores/1');
+        Http::assertNotSent(fn (ClientRequest $request) => $request->url() === 'http://supply-be.test/api/v1/stores/1/locations/11');
+    }
+
+    public function test_stores_chunk_endpoint_forwards_requested_page_to_supply_be(): void
+    {
+        $user = User::factory()->create([
+            'permission_snapshot' => ['stores.view'],
+        ]);
+
+        Http::fake([
+            'http://supply-be.test/api/v1/stores*' => Http::response([
+                'data' => [
+                    [
+                        'id' => 51,
+                        'name' => 'TB Chunk',
+                        'location_count' => 1,
+                        'material_availability_count' => 2,
+                        'resolved_material_count' => 2,
+                        'resolved_branch_count' => 1,
+                        'has_missing_map_coordinates' => false,
+                        'missing_map_branch_count' => 0,
+                        'primary_location' => [
+                            'id' => 511,
+                            'store_id' => 51,
+                            'address' => 'Jl. Chunk 51',
+                            'resolved_address' => 'Jl. Chunk 51',
+                            'city' => 'Bandung',
+                            'province' => 'Jawa Barat',
+                            'latitude' => -6.9,
+                            'longitude' => 107.6,
+                            'contact_name' => 'Agus',
+                            'contact_phone' => '0812',
+                            'material_availabilities_count' => 2,
+                            'resolved_material_count' => 2,
+                        ],
+                        'locations' => [
+                            ['id' => 511, 'store_id' => 51, 'address' => 'Jl. Chunk 51', 'resolved_address' => 'Jl. Chunk 51', 'city' => 'Bandung', 'province' => 'Jawa Barat', 'latitude' => -6.9, 'longitude' => 107.6, 'contact_name' => 'Agus', 'contact_phone' => '0812', 'material_availabilities_count' => 2],
+                        ],
+                    ],
+                ],
+                'current_page' => 2,
+                'per_page' => 50,
+                'total' => 120,
+                'last_page' => 3,
+            ], 200),
+        ]);
+
+        $response = $this->actingAs($user)->get('/stores/chunk?page=2');
+
+        $response->assertOk();
+        $response->assertSee('TB Chunk');
+        $response->assertSee('data-next-page="3"', false);
+
+        Http::assertSent(function (ClientRequest $request) {
+            if (! str_starts_with($request->url(), 'http://supply-be.test/api/v1/stores')) {
+                return false;
+            }
+
+            parse_str(parse_url($request->url(), PHP_URL_QUERY) ?? '', $query);
+
+            return (int) ($query['page'] ?? 0) === 2
+                && (int) ($query['perPage'] ?? 0) === 50;
+        });
     }
 
     public function test_store_create_donor_form_can_create_initial_location_without_changing_monolith_ux(): void

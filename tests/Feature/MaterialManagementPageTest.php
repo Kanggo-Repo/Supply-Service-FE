@@ -30,6 +30,34 @@ class MaterialManagementPageTest extends TestCase
         ]);
 
         Http::fake([
+            'http://supply-be.test/api/v1/materials/summary' => Http::response([
+                'data' => [
+                    'families' => [
+                        'brick' => 1,
+                        'cement' => 0,
+                        'sand' => 0,
+                        'cat' => 0,
+                        'ceramic' => 0,
+                        'nat' => 0,
+                        'steel' => 0,
+                        'kasa_gypsum' => 0,
+                        'paku_tembak' => 0,
+                        'paku' => 0,
+                    ],
+                    'display_families' => [
+                        'brick' => 1,
+                        'cement' => 0,
+                        'sand' => 0,
+                        'cat' => 0,
+                        'ceramic' => 0,
+                        'steel' => 0,
+                        'kasa_gypsum' => 0,
+                        'paku_tembak' => 0,
+                        'paku' => 0,
+                    ],
+                    'grand_total' => 1,
+                ],
+            ], 200),
             'http://supply-be.test/api/v1/materials/brick*' => Http::response([
                 'data' => [
                     [
@@ -70,6 +98,75 @@ class MaterialManagementPageTest extends TestCase
         $response->assertSee('Database Material');
         $response->assertSee('Alpha Brick');
         $response->assertSee('Roster');
+
+        Http::assertSent(function (ClientRequest $request) {
+            if (! str_starts_with($request->url(), 'http://supply-be.test/api/v1/materials/brick')) {
+                return false;
+            }
+
+            parse_str(parse_url($request->url(), PHP_URL_QUERY) ?? '', $query);
+
+            return ($query['search'] ?? null) === 'Alpha'
+                && (int) ($query['page'] ?? 0) === 1
+                && (int) ($query['perPage'] ?? 0) === 50;
+        });
+    }
+
+    public function test_material_tab_endpoint_forwards_chunk_page_to_supply_be(): void
+    {
+        $user = User::factory()->create([
+            'permission_snapshot' => ['materials.view'],
+        ]);
+
+        Http::fake([
+            'http://supply-be.test/api/v1/materials/brick*' => Http::response([
+                'data' => [
+                    [
+                        'id' => 51,
+                        'family' => 'brick',
+                        'label' => 'Brick Chunked Roster',
+                        'brand' => 'Brick Chunked',
+                        'type' => 'Roster',
+                    ],
+                ],
+                'current_page' => 2,
+                'per_page' => 50,
+                'total' => 120,
+                'last_page' => 3,
+            ], 200),
+            'http://supply-be.test/api/v1/units/grouped' => Http::response([
+                'success' => true,
+                'data' => [
+                    'brick' => [],
+                    'cement' => [],
+                    'nat' => [],
+                    'sand' => [],
+                    'cat' => [],
+                    'ceramic' => [],
+                    'steel' => [],
+                    'kasa_gypsum' => [],
+                    'paku_tembak' => [],
+                    'paku' => [],
+                ],
+            ], 200),
+        ]);
+
+        $response = $this->actingAs($user)->get('/materials/tab/brick?page=2');
+
+        $response->assertOk();
+        $response->assertSee('Brick Chunked');
+        $response->assertSee('data-next-page="3"', false);
+
+        Http::assertSent(function (ClientRequest $request) {
+            if (! str_starts_with($request->url(), 'http://supply-be.test/api/v1/materials/brick')) {
+                return false;
+            }
+
+            parse_str(parse_url($request->url(), PHP_URL_QUERY) ?? '', $query);
+
+            return (int) ($query['page'] ?? 0) === 2
+                && (int) ($query['perPage'] ?? 0) === 50;
+        });
     }
 
     public function test_materials_index_uses_all_family_totals_for_tab_badges_and_topbar(): void
@@ -80,6 +177,37 @@ class MaterialManagementPageTest extends TestCase
 
         Http::fake(function (ClientRequest $request) {
             $path = parse_url($request->url(), PHP_URL_PATH) ?? '';
+
+            if ($path === '/api/v1/materials/summary') {
+                return Http::response([
+                    'data' => [
+                        'families' => [
+                            'brick' => 9,
+                            'cement' => 165,
+                            'sand' => 0,
+                            'cat' => 0,
+                            'ceramic' => 0,
+                            'nat' => 7,
+                            'steel' => 0,
+                            'kasa_gypsum' => 0,
+                            'paku_tembak' => 0,
+                            'paku' => 0,
+                        ],
+                        'display_families' => [
+                            'brick' => 9,
+                            'cement' => 172,
+                            'sand' => 0,
+                            'cat' => 0,
+                            'ceramic' => 0,
+                            'steel' => 0,
+                            'kasa_gypsum' => 0,
+                            'paku_tembak' => 0,
+                            'paku' => 0,
+                        ],
+                        'grand_total' => 181,
+                    ],
+                ], 200);
+            }
 
             if ($path === '/api/v1/units/grouped') {
                 return Http::response([
@@ -117,26 +245,6 @@ class MaterialManagementPageTest extends TestCase
                 ], 200);
             }
 
-            if ($path === '/api/v1/materials/cement') {
-                return Http::response([
-                    'data' => [],
-                    'current_page' => 1,
-                    'per_page' => 1,
-                    'total' => 165,
-                    'last_page' => 165,
-                ], 200);
-            }
-
-            if ($path === '/api/v1/materials/nat') {
-                return Http::response([
-                    'data' => [],
-                    'current_page' => 1,
-                    'per_page' => 1,
-                    'total' => 7,
-                    'last_page' => 7,
-                ], 200);
-            }
-
             return Http::response([
                 'data' => [],
                 'current_page' => 1,
@@ -156,6 +264,8 @@ class MaterialManagementPageTest extends TestCase
             'Semen',
             '172',
         ], false);
+
+        Http::assertSentCount(3);
     }
 
     public function test_material_create_forwards_payload_to_supply_be_and_redirects_back_to_family_tab(): void
@@ -213,6 +323,34 @@ class MaterialManagementPageTest extends TestCase
         ]);
 
         Http::fake([
+            'http://supply-be.test/api/v1/materials/summary' => Http::response([
+                'data' => [
+                    'families' => [
+                        'brick' => 0,
+                        'cement' => 0,
+                        'sand' => 0,
+                        'cat' => 0,
+                        'ceramic' => 0,
+                        'nat' => 0,
+                        'steel' => 0,
+                        'kasa_gypsum' => 0,
+                        'paku_tembak' => 0,
+                        'paku' => 0,
+                    ],
+                    'display_families' => [
+                        'brick' => 0,
+                        'cement' => 0,
+                        'sand' => 0,
+                        'cat' => 0,
+                        'ceramic' => 0,
+                        'steel' => 0,
+                        'kasa_gypsum' => 0,
+                        'paku_tembak' => 0,
+                        'paku' => 0,
+                    ],
+                    'grand_total' => 0,
+                ],
+            ], 200),
             'http://supply-be.test/api/v1/materials/brick*' => Http::response([
                 'data' => [],
                 'current_page' => 1,
@@ -253,6 +391,34 @@ class MaterialManagementPageTest extends TestCase
         ]);
 
         Http::fake([
+            'http://supply-be.test/api/v1/materials/summary' => Http::response([
+                'data' => [
+                    'families' => [
+                        'brick' => 1,
+                        'cement' => 0,
+                        'sand' => 0,
+                        'cat' => 0,
+                        'ceramic' => 0,
+                        'nat' => 0,
+                        'steel' => 0,
+                        'kasa_gypsum' => 0,
+                        'paku_tembak' => 0,
+                        'paku' => 0,
+                    ],
+                    'display_families' => [
+                        'brick' => 1,
+                        'cement' => 0,
+                        'sand' => 0,
+                        'cat' => 0,
+                        'ceramic' => 0,
+                        'steel' => 0,
+                        'kasa_gypsum' => 0,
+                        'paku_tembak' => 0,
+                        'paku' => 0,
+                    ],
+                    'grand_total' => 1,
+                ],
+            ], 200),
             'http://supply-be.test/api/v1/materials/brick*' => Http::response([
                 'data' => [
                     [

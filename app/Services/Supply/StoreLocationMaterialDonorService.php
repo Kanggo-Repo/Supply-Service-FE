@@ -42,7 +42,8 @@ class StoreLocationMaterialDonorService
             ->map(fn (mixed $group): array => is_array($group) ? $group : [])
             ->values();
 
-        $allSettings = $this->getDisplayMaterialSettings();
+        $visibleTypes = $this->visibleDisplayMaterialTypes($rawGroups);
+        $allSettings = $this->getDisplayMaterialSettings($visibleTypes);
         $search = trim((string) ($filters['search'] ?? ''));
         $sortBy = $this->normalizeSortBy($filters['sort_by'] ?? null);
         $sortDirection = $this->normalizeSortDirection($filters['sort_direction'] ?? null);
@@ -111,13 +112,31 @@ class StoreLocationMaterialDonorService
     }
 
     /**
+     * @param  Collection<int, array<string, mixed>>  $rawGroups
+     * @return list<string>
+     */
+    private function visibleDisplayMaterialTypes(Collection $rawGroups): array
+    {
+        return $rawGroups
+            ->filter(function (array $group): bool {
+                return is_array($group['items'] ?? null) && count((array) $group['items']) > 0;
+            })
+            ->map(fn (array $group): string => $this->normalizeDisplayMaterialType((string) ($group['type'] ?? '')))
+            ->filter(fn (string $type): bool => $type !== '')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
      * @return Collection<int, MaterialSetting>
      */
-    private function getDisplayMaterialSettings(): Collection
+    private function getDisplayMaterialSettings(array $visibleTypes): Collection
     {
         return collect(SupplyMaterialCatalog::families())
             ->keys()
             ->reject(fn (string $type): bool => $type === 'nat')
+            ->filter(fn (string $type): bool => in_array($type, $visibleTypes, true))
             ->map(fn (string $type): MaterialSetting => new MaterialSetting([
                 'material_type' => $type,
                 'is_visible' => true,

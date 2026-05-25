@@ -1925,6 +1925,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
                         lockWindowTop();
 
+                        initializeMaterialChunkLoader(panel);
+                        syncMaterialLetterLinks(panel);
+
                         // Re-initialize sticky headers
                         if (typeof applyAllStickyOffsets === 'function') {
                             window.requestAnimationFrame(() => applyAllStickyOffsets());
@@ -5549,6 +5552,207 @@ document.addEventListener('DOMContentLoaded', function() {
         highlightSearchMatches();
     }
 
+    function appendMaterialLetterLink(panel, materialType, letter) {
+        const kanggoLetters = panel.querySelector('.kanggo-letters');
+        if (!kanggoLetters) return;
+
+        const targetHash = `#${materialType}-letter-${letter}`;
+        if (kanggoLetters.querySelector(`.kanggo-img-link[href="${targetHash}"]`)) {
+            return;
+        }
+
+        const imageIndex = letter.charCodeAt(0) - 64;
+        if (imageIndex < 1 || imageIndex > 26) {
+            return;
+        }
+
+        const link = document.createElement('a');
+        link.href = targetHash;
+        link.className = 'kanggo-img-link';
+
+        const image = document.createElement('img');
+        image.src = `/Pagination/${imageIndex}.png`;
+        image.alt = letter;
+        image.className = 'kanggo-img';
+
+        link.appendChild(image);
+        kanggoLetters.appendChild(link);
+        bindPaginationLink(link);
+    }
+
+    function syncMaterialLetterLinks(panel) {
+        if (hasSearchQuery) return;
+
+        const materialType =
+            panel.getAttribute('data-tab')
+            || panel.querySelector('.material-chunk-state')?.getAttribute('data-material-tab')
+            || '';
+
+        if (!materialType) return;
+
+        const letters = new Set();
+        panel.querySelectorAll(`[id^="${materialType}-letter-"]`).forEach(anchor => {
+            const match = anchor.id.match(new RegExp(`^${materialType}-letter-([A-Z])$`));
+            if (match) {
+                letters.add(match[1]);
+            }
+        });
+
+        Array.from(letters)
+            .sort()
+            .forEach(letter => appendMaterialLetterLink(panel, materialType, letter));
+    }
+
+    async function loadNextMaterialChunk(panel) {
+        const state = panel.querySelector('.material-chunk-state');
+        const sentinel = panel.querySelector('.material-chunk-sentinel');
+        const tableContainer = panel.querySelector('.table-container');
+        const tbody = panel.querySelector('tbody');
+
+        if (!state || !sentinel || !tableContainer || !tbody) return false;
+        if (state.dataset.loading === 'true') return false;
+
+        const nextPage = Number.parseInt(state.dataset.nextPage || '', 10);
+        if (!Number.isFinite(nextPage) || nextPage <= 0) {
+            sentinel.style.display = 'none';
+            return false;
+        }
+
+        state.dataset.loading = 'true';
+        const loadingIndicator = sentinel.querySelector('.material-chunk-loading-indicator');
+        if (loadingIndicator) {
+            loadingIndicator.classList.add('is-visible');
+        }
+
+        try {
+            const url = new URL(state.dataset.baseUrl, window.location.origin);
+            url.searchParams.set('page', String(nextPage));
+
+            const response = await fetch(url.toString(), {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+
+            const html = await response.text();
+            const parser = new DOMParser();
+            const parsed = parser.parseFromString(html, 'text/html');
+            const incomingTbody = parsed.querySelector('tbody');
+            const nextState = parsed.querySelector('.material-chunk-state');
+
+            if (!incomingTbody || !nextState) {
+                return false;
+            }
+
+            const incomingRows = Array.from(incomingTbody.querySelectorAll('tr'))
+                .filter(row => !row.classList.contains('material-inline-editor-row'));
+
+            if (!incomingRows.length) {
+                state.dataset.nextPage = '';
+                sentinel.style.display = 'none';
+                return false;
+            }
+
+            const fragment = document.createDocumentFragment();
+            incomingRows.forEach(row => {
+                if (row.id && document.getElementById(row.id)) {
+                    row.removeAttribute('id');
+                }
+
+                fragment.appendChild(row);
+            });
+
+            tbody.appendChild(fragment);
+
+            state.dataset.currentPage = nextState.dataset.currentPage || state.dataset.currentPage;
+            state.dataset.lastPage = nextState.dataset.lastPage || state.dataset.lastPage;
+            state.dataset.nextPage = nextState.dataset.nextPage || '';
+
+            const hasMore = state.dataset.nextPage !== '';
+            sentinel.style.display = hasMore ? 'flex' : 'none';
+            sentinel.style.height = hasMore ? '48px' : '1px';
+
+            updateRowNumbers(tbody);
+            syncMaterialLetterLinks(panel);
+
+            if (hasSearchQuery) {
+                setupSearchEnhancements();
+            }
+
+            if (typeof applyAllStickyOffsets === 'function') {
+                window.requestAnimationFrame(() => applyAllStickyOffsets());
+            }
+
+            updateActivePaginationLetter();
+
+            return true;
+        } catch (error) {
+            console.error('Failed to load material chunk:', error);
+            if (typeof window.showToast === 'function') {
+                window.showToast('Gagal memuat data material berikutnya.', 'error');
+            }
+            return false;
+        } finally {
+            state.dataset.loading = 'false';
+            if (loadingIndicator) {
+                loadingIndicator.classList.remove('is-visible');
+            }
+        }
+    }
+
+    async function ensureMaterialAnchorLoaded(panel, targetId) {
+        if (!panel || !targetId) return false;
+        if (document.getElementById(targetId)) return true;
+
+        while (await loadNextMaterialChunk(panel)) {
+            if (document.getElementById(targetId)) {
+                return true;
+            }
+        }
+
+        return !!document.getElementById(targetId);
+    }
+
+    function initializeMaterialChunkLoader(panel) {
+        if (!panel) return;
+
+        const tableContainer = panel.querySelector('.table-container');
+        const sentinel = panel.querySelector('.material-chunk-sentinel');
+        const state = panel.querySelector('.material-chunk-state');
+
+        if (!tableContainer || !sentinel || !state) return;
+
+        if (sentinel.__materialChunkObserver) {
+            sentinel.__materialChunkObserver.disconnect();
+        }
+
+        if (!state.dataset.nextPage) {
+            sentinel.style.display = 'none';
+            return;
+        }
+
+        sentinel.style.display = 'flex';
+
+        const observer = new IntersectionObserver(entries => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    loadNextMaterialChunk(panel);
+                }
+            });
+        }, {
+            root: tableContainer,
+            rootMargin: '250px 0px',
+            threshold: 0.01
+        });
+
+        observer.observe(sentinel);
+        sentinel.__materialChunkObserver = observer;
+    }
+
     function applyAllStickyOffsets() {
         // Function to apply sticky offsets to a specific section and class
         const applyToSection = (sectionId, stickyClass) => {
@@ -5594,9 +5798,11 @@ document.addEventListener('DOMContentLoaded', function() {
         applyToSection('section-paku', 'paku-sticky-col');
     }
 
-    // Add click handlers to pagination links to preserve current tab
-    document.querySelectorAll('.kanggo-img-link').forEach(link => {
-        link.addEventListener('click', function(e) {
+    function bindPaginationLink(link) {
+        if (!link || link.dataset.materialPaginationBound === 'true') return;
+        link.dataset.materialPaginationBound = 'true';
+
+        link.addEventListener('click', async function(e) {
             e.preventDefault();
             e.stopPropagation();
 
@@ -5623,6 +5829,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const targetId = href.slice(1);
             const activeTabType = activeTab && activeTab.dataset ? activeTab.dataset.tab : '';
+            const activePanel = document.querySelector('.material-tab-panel.active') || document.querySelector('.material-tab-panel');
 
             // Remember this letter for the tab
             rememberLetterForTab(activeTabType, href);
@@ -5638,6 +5845,8 @@ document.addEventListener('DOMContentLoaded', function() {
             document.body.scrollTop = 0;
 
             // Find target and scroll ONLY the container (not window)
+            await ensureMaterialAnchorLoaded(activePanel, targetId);
+
             const targetElement = document.getElementById(targetId);
             if (!targetElement) return false;
 
@@ -5678,13 +5887,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
             return false;
         });
-    });
+    }
+
+    // Add click handlers to pagination links to preserve current tab
+    document.querySelectorAll('.kanggo-img-link').forEach(bindPaginationLink);
 
     // Handle page load with hash (that was saved in __materialHash)
     const initialHash = window.__materialHash;
     if (initialHash && initialHash !== '#skip-page') {
-        window.setTimeout(() => {
+        window.setTimeout(async () => {
             const targetId = initialHash.slice(1);
+            const activePanel = document.querySelector('.material-tab-panel.active') || document.querySelector('.material-tab-panel');
 
             // Force window at top
             window.scrollTo(0, 0);
@@ -5700,6 +5913,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             // Scroll ONLY container to target
+            await ensureMaterialAnchorLoaded(activePanel, targetId);
             const targetElement = document.getElementById(targetId);
             if (targetElement) {
                 const container = targetElement.closest('.table-container');
@@ -5730,13 +5944,15 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Handle hash change events
-    window.addEventListener('hashchange', () => {
+    window.addEventListener('hashchange', async () => {
         const targetId = window.location.hash.slice(1);
+        const activePanel = document.querySelector('.material-tab-panel.active') || document.querySelector('.material-tab-panel');
 
         // Update active pagination letter
         updateActivePaginationLetter(window.location.hash);
 
         // Scroll to target (container scroll only)
+        await ensureMaterialAnchorLoaded(activePanel, targetId);
         scrollToTargetInContainer(targetId);
 
         // Highlight/blink row
@@ -5764,6 +5980,10 @@ document.addEventListener('DOMContentLoaded', function() {
         updateActivePaginationLetter();
     }
     setupSearchEnhancements();
+    document.querySelectorAll('.material-tab-panel.active, .material-tab-panel:not(.hidden)').forEach(panel => {
+        initializeMaterialChunkLoader(panel);
+        syncMaterialLetterLinks(panel);
+    });
     
     // Apply sticky offsets for all relevant sections
     applyAllStickyOffsets();

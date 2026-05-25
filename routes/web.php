@@ -131,6 +131,9 @@ Route::middleware('monolith.auth')->group(function () {
     Route::get('/stores', [StoreDonorController::class, 'index'])
         ->middleware('supply.permission:stores.view')
         ->name('stores.index');
+    Route::get('/stores/chunk', [StoreDonorController::class, 'fetchChunk'])
+        ->middleware('supply.permission:stores.view')
+        ->name('stores.chunk');
     Route::get('/stores/create', [StoreDonorController::class, 'create'])
         ->middleware('supply.permission:stores.create')
         ->name('stores.create');

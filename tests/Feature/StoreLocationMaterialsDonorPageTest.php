@@ -125,6 +125,10 @@ class StoreLocationMaterialsDonorPageTest extends TestCase
         $response->assertSee('Semen');
         $response->assertSee('Brick Alpha');
         $response->assertSee('Nat Putih Premium');
+        $response->assertSee('data-tab="brick"', false);
+        $response->assertSee('data-tab="cement"', false);
+        $response->assertDontSee('data-tab="cat"', false);
+        $response->assertDontSee('data-tab="sand"', false);
         $response->assertSee('storeLocationMaterialActiveTab');
         $response->assertSee('materialChoiceModal');
 

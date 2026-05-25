@@ -557,7 +557,7 @@ class MaterialDonorController extends Controller
         return collect($families)
             ->flatMap(function (string $family) use ($request): array {
                 $payload = $this->supplyServiceClient->listMaterials($family, [
-                    'perPage' => 500,
+                    'all' => 1,
                 ], $request->user());
 
                 return is_array($payload['data'] ?? null) ? array_values($payload['data']) : [];

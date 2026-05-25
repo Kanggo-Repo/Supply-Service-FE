@@ -37,24 +37,6 @@
         </form>
 
         <!-- Table Layout -->
-        @php
-            $storeLocationPoints = $stores
-                ->flatMap(function ($store) {
-                    return $store->locations->map(function ($location) use ($store) {
-                        return [
-                            'store_name' => (string) $store->name,
-                            'address' => trim((string) ($location->formatted_address ?: $location->address ?: '-')),
-                            'city' => trim((string) ($location->city ?? '')),
-                            'province' => trim((string) ($location->province ?? '')),
-                            'latitude' => is_numeric($location->latitude) ? (float) $location->latitude : null,
-                            'longitude' => is_numeric($location->longitude) ? (float) $location->longitude : null,
-                        ];
-                    });
-                })
-                ->filter(fn($point) => is_numeric($point['latitude']) && is_numeric($point['longitude']))
-                ->values();
-        @endphp
-
         <div class="stores-map-card card border-0 shadow-sm mb-3">
             <div class="card-body py-2 px-2">
                 <button type="button"
@@ -71,17 +53,15 @@
                 </button>
 
                 <div class="stores-map-collapse" id="storesMapAccordionBody" hidden>
-                    @if ($storeLocationPoints->isNotEmpty())
-                        <div id="storesIndexLocationsMap"
-                            class="stores-index-map"
-                            data-google-maps-api-key="{{ config('services.google.maps_api_key') }}"
-                            data-store-label-min-zoom="12"
-                            data-store-marker-icon="{{ asset('images/store-marker.svg') }}"></div>
-                    @else
-                        <div class="alert alert-light border mb-0 py-2 px-3 small text-muted">
-                            Belum ada lokasi toko yang memiliki koordinat.
-                        </div>
-                    @endif
+                    <div id="storesIndexLocationsMap"
+                        class="stores-index-map"
+                        data-google-maps-api-key="{{ config('services.google.maps_api_key') }}"
+                        data-store-label-min-zoom="12"
+                        data-store-marker-icon="{{ asset('images/store-marker.svg') }}"
+                        hidden></div>
+                    <div id="storesIndexMapEmptyState" class="alert alert-light border mb-0 py-2 px-3 small text-muted" hidden>
+                        Belum ada lokasi toko yang memiliki koordinat.
+                    </div>
                 </div>
             </div>
         </div>
@@ -104,93 +84,27 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @forelse($stores as $store)
-                                <tr class="store-row">
-                                    <td class="store-col-no">{{ $loop->iteration }}</td>
-                                    <td class="store-scroll-td store-name-td">
-                                        <span class="store-scroll-cell store-name-cell fw-semibold text-dark" title="{{ $store->name }}">{{ $store->name }}</span>
-                                    </td>
-                                    @if($store->primary_location)
-                                        @php $mainLoc = $store->primary_location; @endphp
-                                        <td class="store-scroll-td store-address-td">
-                                            <div class="store-map-cell">
-                                                <span class="store-scroll-cell" title="{{ $mainLoc->resolved_address ?? $mainLoc->address ?? '-' }}">{{ $mainLoc->resolved_address ?? $mainLoc->address ?? '-' }}</span>
-                                                @if($mainLoc->has_missing_map_coordinates ?? false)
-                                                    <div class="store-map-warning-note">Koordinat cabang utama belum diisi.</div>
-                                                @endif
-                                            </div>
-                                        </td>
-                                        <td class="store-scroll-td store-city-td">
-                                            <span class="store-scroll-cell" title="{{ $mainLoc->city ?? '-' }}">{{ $mainLoc->city ?? '-' }}</span>
-                                        </td>
-                                        <td class="store-scroll-td store-province-td">
-                                            <span class="store-scroll-cell" title="{{ $mainLoc->province ?? '-' }}">{{ $mainLoc->province ?? '-' }}</span>
-                                        </td>
-                                        <td class="store-scroll-td store-phone-td">
-                                            <span class="store-scroll-cell" title="{{ $mainLoc->contact_phone ?? '-' }}">{{ $mainLoc->contact_phone ?? '-' }}</span>
-                                        </td>
-                                        <td class="store-scroll-td store-pic-td">
-                                            <span class="store-scroll-cell" title="{{ $mainLoc->contact_name ?? '-' }}">{{ $mainLoc->contact_name ?? '-' }}</span>
-                                        </td>
-                                    @else
-                                        <td colspan="5" class="store-missing-location-td">
-                                            <div class="store-map-cell">
-                                                <span class="text-muted fst-italic">Belum ada lokasi</span>
-                                                <div class="store-map-warning-note">Tambahkan lokasi dan titik Google Maps sekarang.</div>
-                                            </div>
-                                        </td>
-                                    @endif
-                                    <td class="text-center">
-                                        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle rounded-pill px-2 fw-medium">
-                                            {{ $store->resolved_material_count ?? 0 }}
-                                        </span>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-2">
-                                            {{ $store->resolved_branch_count ?? 0 }}
-                                        </span>
-                                    </td>
-                                    <td class="store-col-action text-center action-cell">
-                                        <div class="btn-group-compact">
-                                            <a href="{{ route('stores.show', $store) }}" class="btn btn-primary btn-action" data-bs-toggle="tooltip" title="Detail">
-                                                <i class="bi bi-eye"></i>
-                                            </a>
-                                            <a href="{{ route('stores.edit', $store) }}" class="btn btn-warning btn-action global-open-modal" data-bs-toggle="tooltip" title="Edit">
-                                                <i class="bi bi-pencil-square"></i>
-                                            </a>
-                                            <form action="{{ route('stores.destroy', $store) }}" method="POST" class="d-inline"
-                                                data-confirm="Apakah Anda yakin ingin menghapus toko {{ $store->name }}? Data yang dihapus tidak dapat dikembalikan."
-                                                data-confirm-title="Hapus Toko"
-                                                data-confirm-type="danger"
-                                                data-confirm-ok="Ya, Hapus"
-                                                data-confirm-cancel="Batal">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="btn btn-danger btn-action" data-bs-toggle="tooltip" title="Hapus">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
-                                            </form>
-                                        </div>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="10" class="text-center py-5">
-                                        <div class="d-flex flex-column align-items-center justify-content-center">
-                                            <div class="bg-light rounded-circle p-3 mb-3">
-                                                <i class="bi bi-shop fs-3 text-muted"></i>
-                                            </div>
-                                            <h6 class="fw-bold text-dark">Belum Ada Toko</h6>
-                                            <p class="text-muted small mb-3">Tambahkan toko pertama Anda untuk memulai.</p>
-                                            <a href="{{ route('stores.create') }}" class="btn btn-primary px-3">
-                                                <i class="bi bi-plus-lg me-1"></i>Tambah
-                                            </a>
-                                        </div>
-                                    </td>
-                                </tr>
-                            @endforelse
+                            @include('stores.partials.rows', ['stores' => $stores, 'pagination' => $pagination])
                         </tbody>
                     </table>
+                    @php
+                        $chunkBaseParams = array_filter([
+                            'search' => request('search'),
+                            'sort_by' => request('sort_by'),
+                            'sort_direction' => request('sort_direction'),
+                        ], fn ($value) => $value !== null && $value !== '');
+                    @endphp
+                    <div class="stores-chunk-state"
+                        data-base-url="{{ route('stores.chunk', $chunkBaseParams) }}"
+                        data-current-page="{{ (int) ($pagination['current_page'] ?? 1) }}"
+                        data-last-page="{{ (int) ($pagination['last_page'] ?? 1) }}"
+                        data-next-page="{{ $pagination['next_page'] ?? '' }}"
+                        hidden></div>
+                    <div class="stores-chunk-sentinel" style="height: {{ !empty($pagination['next_page']) ? '48px' : '1px' }}; display: {{ !empty($pagination['next_page']) ? 'flex' : 'none' }}; align-items: center; justify-content: center;">
+                        <span class="stores-chunk-loading-indicator" aria-live="polite" aria-label="Memuat data toko berikutnya">
+                            <span class="stores-chunk-loading-loop" aria-hidden="true"></span>
+                        </span>
+                    </div>
                 </div>
         </div>
     </div>
@@ -525,6 +439,32 @@
         height: 0;
     }
 
+    .stores-chunk-loading-indicator {
+        display: none;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .stores-chunk-loading-indicator.is-visible {
+        display: inline-flex;
+    }
+
+    .stores-chunk-loading-loop {
+        width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        border: 3px solid rgba(148, 163, 184, 0.25);
+        border-top-color: #0ea5e9;
+        border-right-color: #22c55e;
+        animation: storesChunkLoopSpin 0.9s linear infinite;
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+    }
+
+    @keyframes storesChunkLoopSpin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+
     /* ========== ACTION BUTTONS (IDENTICAL TO MATERIALS) ========== */
     .btn-group-compact {
         display: inline-flex;
@@ -637,23 +577,186 @@
         });
     }
 
-    document.addEventListener('DOMContentLoaded', function() {
+    function initializeStoresPageEnhancements() {
         updateStoreScrollIndicators();
         bindStoreScrollHandlers();
+        initializeStoresChunkLoader();
         requestAnimationFrame(updateStoreScrollIndicators);
         setTimeout(updateStoreScrollIndicators, 60);
-    });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeStoresPageEnhancements);
+    } else {
+        initializeStoresPageEnhancements();
+    }
     window.addEventListener('resize', function() {
         updateStoreScrollIndicators();
         bindStoreScrollHandlers();
+        initializeStoresChunkLoader();
     });
-    window.addEventListener('load', updateStoreScrollIndicators);
+    window.addEventListener('load', function() {
+        updateStoreScrollIndicators();
+        initializeStoresChunkLoader();
+    });
+
+    function updateStoreRowNumbers() {
+        const rows = document.querySelectorAll('.stores-table-wrapper tbody .store-row');
+        rows.forEach((row, index) => {
+            const cell = row.querySelector('.store-col-no');
+            if (cell) {
+                cell.textContent = index + 1;
+            }
+        });
+    }
+
+    async function loadNextStoreChunk() {
+        const state = document.querySelector('.stores-chunk-state');
+        const sentinel = document.querySelector('.stores-chunk-sentinel');
+        const tbody = document.querySelector('.stores-table-wrapper tbody');
+
+        if (!state || !sentinel || !tbody) return false;
+        if (state.dataset.loading === 'true') return false;
+
+        const nextPage = Number.parseInt(state.dataset.nextPage || '', 10);
+        if (!Number.isFinite(nextPage) || nextPage <= 0) {
+            sentinel.style.display = 'none';
+            return false;
+        }
+
+        state.dataset.loading = 'true';
+        const loadingIndicator = sentinel.querySelector('.stores-chunk-loading-indicator');
+        if (loadingIndicator) {
+            loadingIndicator.classList.add('is-visible');
+        }
+
+        try {
+            const url = new URL(state.dataset.baseUrl, window.location.origin);
+            url.searchParams.set('page', String(nextPage));
+
+            const response = await fetch(url.toString(), {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'text/html, */*;q=0.8'
+                },
+                credentials: 'same-origin'
+            });
+
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+
+            const html = await response.text();
+            const parser = new DOMParser();
+            const parsed = parser.parseFromString(html, 'text/html');
+            const incomingTbody = parsed.querySelector('tbody');
+            const nextState = parsed.querySelector('.stores-chunk-state');
+
+            if (!incomingTbody || !nextState) {
+                console.warn('Unexpected stores chunk response shape.', {
+                    hasTbody: !!incomingTbody,
+                    hasChunkState: !!nextState,
+                    responseLength: html.length,
+                    responsePreview: html.slice(0, 200),
+                });
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Respons lazy load toko tidak valid. Coba refresh halaman.', 'error');
+                }
+                return false;
+            }
+
+            const incomingRows = Array.from(incomingTbody.querySelectorAll('tr'));
+            if (!incomingRows.length) {
+                state.dataset.nextPage = '';
+                sentinel.style.display = 'none';
+                return false;
+            }
+
+            const fragment = document.createDocumentFragment();
+            incomingRows.forEach(row => fragment.appendChild(row));
+            tbody.appendChild(fragment);
+
+            state.dataset.currentPage = nextState.dataset.currentPage || state.dataset.currentPage;
+            state.dataset.lastPage = nextState.dataset.lastPage || state.dataset.lastPage;
+            state.dataset.nextPage = nextState.dataset.nextPage || '';
+
+            const hasMore = state.dataset.nextPage !== '';
+            sentinel.style.display = hasMore ? 'flex' : 'none';
+            sentinel.style.height = hasMore ? '48px' : '1px';
+
+            bindStoreScrollHandlers();
+            updateStoreScrollIndicators();
+            updateStoreRowNumbers();
+            document.dispatchEvent(new CustomEvent('stores:rows-appended'));
+
+            return true;
+        } catch (error) {
+            console.error('Failed to load store chunk:', error);
+            if (typeof window.showToast === 'function') {
+                window.showToast('Gagal memuat data toko berikutnya.', 'error');
+            }
+            return false;
+        } finally {
+            state.dataset.loading = 'false';
+            if (loadingIndicator) {
+                loadingIndicator.classList.remove('is-visible');
+            }
+        }
+    }
+
+    function initializeStoresChunkLoader() {
+        const container = document.querySelector('.stores-table-wrapper .table-container');
+        const sentinel = document.querySelector('.stores-chunk-sentinel');
+        const state = document.querySelector('.stores-chunk-state');
+
+        if (!container || !sentinel || !state) return;
+
+        if (sentinel.__storesChunkObserver) {
+            sentinel.__storesChunkObserver.disconnect();
+        }
+
+        if (!state.dataset.nextPage) {
+            sentinel.style.display = 'none';
+            return;
+        }
+
+        const observer = new IntersectionObserver(entries => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    loadNextStoreChunk();
+                }
+            });
+        }, {
+            root: container,
+            rootMargin: '250px 0px',
+            threshold: 0.01
+        });
+
+        observer.observe(sentinel);
+        sentinel.__storesChunkObserver = observer;
+
+        if (!container.__storesChunkScrollBound) {
+            container.__storesChunkScrollBound = true;
+            container.addEventListener('scroll', function() {
+                const nextPage = Number.parseInt(state.dataset.nextPage || '', 10);
+                if (!Number.isFinite(nextPage) || nextPage <= 0) {
+                    return;
+                }
+
+                const remaining = container.scrollHeight - container.scrollTop - container.clientHeight;
+                if (remaining <= 220) {
+                    loadNextStoreChunk();
+                }
+            }, { passive: true });
+        }
+    }
 })();
 
 const initStoresMapAccordion = function() {
     const mapToggleEl = document.getElementById('storesMapAccordionToggle');
     const mapCollapseEl = document.getElementById('storesMapAccordionBody');
     const mapEl = document.getElementById('storesIndexLocationsMap');
+    const mapEmptyEl = document.getElementById('storesIndexMapEmptyState');
 
     if (!mapToggleEl || !mapCollapseEl || mapToggleEl.dataset.accordionReady === 'true') {
         return;
@@ -661,12 +764,32 @@ const initStoresMapAccordion = function() {
 
     mapToggleEl.dataset.accordionReady = 'true';
 
-    const points = @json($storeLocationPoints);
-    const hasPoints = Array.isArray(points) && points.length > 0;
     const apiKey = mapEl?.dataset.googleMapsApiKey || '';
     let storesIndexMap = null;
     let storesIndexBounds = null;
     let mapInitializationPromise = null;
+    let storesIndexMarkers = [];
+    let markerNameOverlays = [];
+
+    const collectStoresIndexPointsFromRows = function() {
+        return Array.from(document.querySelectorAll('.stores-table-wrapper tbody .store-row'))
+            .map(function(row) {
+                const lat = Number(row.dataset.storeMapLat);
+                const lng = Number(row.dataset.storeMapLng);
+
+                return {
+                    store_name: row.dataset.storeMapName || '',
+                    address: row.dataset.storeMapAddress || '',
+                    city: row.dataset.storeMapCity || '',
+                    province: row.dataset.storeMapProvince || '',
+                    latitude: Number.isFinite(lat) ? lat : null,
+                    longitude: Number.isFinite(lng) ? lng : null,
+                };
+            })
+            .filter(function(point) {
+                return Number.isFinite(point.latitude) && Number.isFinite(point.longitude);
+            });
+    };
 
     const syncMapAccordionState = function(expanded) {
         mapToggleEl.classList.toggle('is-open', expanded);
@@ -681,6 +804,7 @@ const initStoresMapAccordion = function() {
 
         google.maps.event.trigger(storesIndexMap, 'resize');
 
+        const points = collectStoresIndexPointsFromRows();
         if (points.length === 1) {
             storesIndexMap.setCenter(storesIndexBounds.getCenter());
             storesIndexMap.setZoom(14);
@@ -733,6 +857,16 @@ const initStoresMapAccordion = function() {
         const text = String(name || '').trim();
         if (!text) return 'Toko';
         return text.length <= 26 ? text : `${text.slice(0, 25)}...`;
+    };
+
+    const syncStoresIndexMapVisibility = function(points) {
+        const hasPoints = Array.isArray(points) && points.length > 0;
+        if (mapEl) {
+            mapEl.hidden = !hasPoints;
+        }
+        if (mapEmptyEl) {
+            mapEmptyEl.hidden = hasPoints;
+        }
     };
 
     const createStoreIcon = function() {
@@ -826,12 +960,77 @@ const initStoresMapAccordion = function() {
         return overlay;
     };
 
+    const clearStoresIndexMapArtifacts = function() {
+        storesIndexMarkers.forEach(function(marker) {
+            if (marker && typeof marker.setMap === 'function') {
+                marker.setMap(null);
+            }
+        });
+        markerNameOverlays.forEach(function(overlay) {
+            if (overlay && typeof overlay.setMap === 'function') {
+                overlay.setMap(null);
+            }
+        });
+        storesIndexMarkers = [];
+        markerNameOverlays = [];
+    };
+
+    const renderStoresIndexMapPoints = function() {
+        const points = collectStoresIndexPointsFromRows();
+        syncStoresIndexMapVisibility(points);
+
+        if (!storesIndexMap || !window.google?.maps || !points.length) {
+            return;
+        }
+
+        clearStoresIndexMapArtifacts();
+        storesIndexBounds = new google.maps.LatLngBounds();
+        const infoWindow = new google.maps.InfoWindow();
+        const icon = createStoreIcon();
+        const parsedLabelMinZoom = Number(mapEl.dataset.storeLabelMinZoom);
+        const storeLabelMinZoom = Number.isFinite(parsedLabelMinZoom) ? parsedLabelMinZoom : 12;
+
+        points.forEach(function(point) {
+            const position = { lat: Number(point.latitude), lng: Number(point.longitude) };
+            storesIndexBounds.extend(position);
+
+            const marker = new google.maps.Marker({
+                map: storesIndexMap,
+                position,
+                title: point.store_name || 'Toko',
+                icon,
+                zIndex: 10,
+            });
+            storesIndexMarkers.push(marker);
+
+            const nameOverlay = createStoreNameOverlay(storesIndexMap, position, point.store_name, storeLabelMinZoom);
+            if (nameOverlay) {
+                markerNameOverlays.push(nameOverlay);
+            }
+
+            marker.addListener('click', function() {
+                infoWindow.setContent(buildStoreInfoContent(point));
+                infoWindow.open(storesIndexMap, marker);
+            });
+        });
+
+        storesIndexMap.addListener('click', function() {
+            infoWindow.close();
+        });
+
+        refreshStoresIndexMapViewport();
+    };
+
     const ensureStoresIndexMap = function() {
-        if (!hasPoints || !mapEl) {
+        const points = collectStoresIndexPointsFromRows();
+        syncStoresIndexMapVisibility(points);
+
+        if (!points.length || !mapEl) {
             return Promise.resolve(null);
         }
 
         if (storesIndexMap) {
+            renderStoresIndexMapPoints();
             refreshStoresIndexMapViewport();
             return Promise.resolve(storesIndexMap);
         }
@@ -863,56 +1062,8 @@ const initStoresMapAccordion = function() {
                     scrollwheel: true,
                 });
 
-                const bounds = new google.maps.LatLngBounds();
-                const infoWindow = new google.maps.InfoWindow();
-                const icon = createStoreIcon();
-                const markerNameOverlays = [];
-                const parsedLabelMinZoom = Number(mapEl.dataset.storeLabelMinZoom);
-                const storeLabelMinZoom = Number.isFinite(parsedLabelMinZoom) ? parsedLabelMinZoom : 12;
-                points.forEach(function(point) {
-                    const lat = Number(point.latitude);
-                    const lng = Number(point.longitude);
-                    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-
-                    const position = { lat, lng };
-                    bounds.extend(position);
-
-                    const marker = new google.maps.Marker({
-                        map,
-                        position,
-                        title: point.store_name || 'Toko',
-                        icon,
-                        zIndex: 10,
-                    });
-
-                    const nameOverlay = createStoreNameOverlay(map, position, point.store_name, storeLabelMinZoom);
-                    if (nameOverlay) {
-                        markerNameOverlays.push(nameOverlay);
-                    }
-
-                    marker.addListener('click', function() {
-                        infoWindow.setContent(buildStoreInfoContent(point));
-                        infoWindow.open(map, marker);
-                    });
-                });
-
-                if (markerNameOverlays.length > 0 && typeof map.addListener === 'function') {
-                    map.addListener('zoom_changed', function() {
-                        markerNameOverlays.forEach(function(overlay) {
-                            if (overlay && typeof overlay.draw === 'function') {
-                                overlay.draw();
-                            }
-                        });
-                    });
-                }
-
-                map.addListener('click', function() {
-                    infoWindow.close();
-                });
-
                 storesIndexMap = map;
-                storesIndexBounds = bounds;
-                refreshStoresIndexMapViewport();
+                renderStoresIndexMapPoints();
 
                 return map;
             })
@@ -946,6 +1097,18 @@ const initStoresMapAccordion = function() {
     });
 
     syncMapAccordionState(false);
+
+    document.addEventListener('stores:rows-appended', function() {
+        if (mapToggleEl.getAttribute('aria-expanded') !== 'true') {
+            return;
+        }
+
+        if (!storesIndexMap) {
+            return;
+        }
+
+        renderStoresIndexMapPoints();
+    });
 };
 
 if (document.readyState === 'loading') {

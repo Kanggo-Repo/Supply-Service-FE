@@ -17,6 +17,8 @@ use Throwable;
 
 class MaterialManagementController extends Controller
 {
+    private const MATERIAL_TAB_CHUNK_SIZE = 50;
+
     public function __construct(
         private readonly SupplyServiceClient $supplyServiceClient,
     ) {}
@@ -49,6 +51,7 @@ class MaterialManagementController extends Controller
                     'count' => count((array) ($payload['data'] ?? [])),
                     'db_count' => $dbCount,
                     'active_letters' => $isLoaded ? $this->getDisplayActiveLetters((array) ($payload['data'] ?? [])) : [],
+                    'pagination' => $this->extractPagination($payload),
                     'is_loaded' => $isLoaded,
                 ];
             }
@@ -80,6 +83,7 @@ class MaterialManagementController extends Controller
             'count' => count((array) ($payload['data'] ?? [])),
             'db_count' => (int) ($payload['total'] ?? 0),
             'active_letters' => $this->getDisplayActiveLetters((array) ($payload['data'] ?? [])),
+            'pagination' => $this->extractPagination($payload),
             'is_loaded' => true,
         ];
 
@@ -279,6 +283,22 @@ class MaterialManagementController extends Controller
      */
     private function getDisplayMaterialCounts(Request $request): array
     {
+        try {
+            $summaryPayload = $this->supplyServiceClient->materialSummary($request->user());
+            $summary = (array) ($summaryPayload['data']['display_families'] ?? []);
+
+            if ($summary !== []) {
+                return collect($this->displayMaterialFamilies())
+                    ->keys()
+                    ->mapWithKeys(fn (string $type): array => [
+                        $type => (int) ($summary[$type] ?? 0),
+                    ])
+                    ->all();
+            }
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+
         $counts = [];
 
         foreach ($this->displaySourceFamilies() as $displayType => $families) {
@@ -307,10 +327,11 @@ class MaterialManagementController extends Controller
     private function getDisplayMaterialPayload(string $type, Request $request): array
     {
         return $this->supplyServiceClient->listMaterials($type, [
+            'page' => max(1, (int) $request->query('page', 1)),
+            'perPage' => self::MATERIAL_TAB_CHUNK_SIZE,
             'search' => $request->query('search'),
             'sortBy' => $this->mapSortField((string) $request->query('sort_by', '')),
             'sortDirection' => $request->query('sort_direction'),
-            'perPage' => 100,
             'letter' => $request->query('letter'),
         ], $request->user());
     }
@@ -321,6 +342,26 @@ class MaterialManagementController extends Controller
             'brand', 'type', 'updated_at' => $sortBy,
             default => null,
         };
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, int|null>
+     */
+    private function extractPagination(array $payload): array
+    {
+        $currentPage = max(1, (int) ($payload['current_page'] ?? 1));
+        $lastPage = max(1, (int) ($payload['last_page'] ?? 1));
+        $perPage = max(1, (int) ($payload['per_page'] ?? self::MATERIAL_TAB_CHUNK_SIZE));
+        $total = max(0, (int) ($payload['total'] ?? 0));
+
+        return [
+            'current_page' => $currentPage,
+            'last_page' => $lastPage,
+            'per_page' => $perPage,
+            'total' => $total,
+            'next_page' => $currentPage < $lastPage ? $currentPage + 1 : null,
+        ];
     }
 
     /**

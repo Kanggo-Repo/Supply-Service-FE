@@ -13,6 +13,8 @@ use Throwable;
 
 class StoreDonorController extends Controller
 {
+    private const STORE_INDEX_CHUNK_SIZE = 50;
+
     public function __construct(
         private readonly SupplyServiceClient $supplyServiceClient,
         private readonly StoreDonorProjectionService $projectionService,
@@ -21,14 +23,18 @@ class StoreDonorController extends Controller
     public function index(Request $request): View
     {
         $stores = collect();
+        $pagination = $this->emptyPagination();
 
         try {
-            $stores = $this->projectionService->listStores([
+            $paginated = $this->projectionService->paginateStores([
                 'search' => $request->query('search'),
                 'sort_by' => $request->query('sort_by'),
                 'sort_direction' => $request->query('sort_direction'),
-                'perPage' => 100,
+                'page' => max(1, (int) $request->query('page', 1)),
+                'perPage' => self::STORE_INDEX_CHUNK_SIZE,
             ], $request->user());
+            $stores = $paginated['data'];
+            $pagination = $paginated;
         } catch (Throwable $exception) {
             report($exception);
 
@@ -43,6 +49,23 @@ class StoreDonorController extends Controller
         return view('stores.index', [
             'activeNav' => 'stores',
             'stores' => $stores,
+            'pagination' => $pagination,
+        ]);
+    }
+
+    public function fetchChunk(Request $request): View
+    {
+        $paginated = $this->projectionService->paginateStores([
+            'search' => $request->query('search'),
+            'sort_by' => $request->query('sort_by'),
+            'sort_direction' => $request->query('sort_direction'),
+            'page' => max(1, (int) $request->query('page', 1)),
+            'perPage' => self::STORE_INDEX_CHUNK_SIZE,
+        ], $request->user());
+
+        return view('stores.partials.chunk', [
+            'stores' => $paginated['data'],
+            'pagination' => $paginated,
         ]);
     }
 
@@ -181,6 +204,20 @@ class StoreDonorController extends Controller
         } catch (Throwable $rollbackException) {
             report($rollbackException);
         }
+    }
+
+    /**
+     * @return array{current_page: int, per_page: int, total: int, last_page: int, next_page: int|null}
+     */
+    private function emptyPagination(): array
+    {
+        return [
+            'current_page' => 1,
+            'per_page' => self::STORE_INDEX_CHUNK_SIZE,
+            'total' => 0,
+            'last_page' => 1,
+            'next_page' => null,
+        ];
     }
 
     /**

@@ -21,6 +21,41 @@
             }
         })();
     </script>
+    <style>
+        .material-chunk-sentinel {
+            position: relative;
+        }
+
+        .material-chunk-loading-indicator {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+
+        .material-chunk-loading-indicator.is-visible {
+            display: inline-flex;
+        }
+
+        .material-chunk-loading-loop {
+            width: 28px;
+            height: 28px;
+            border-radius: 999px;
+            border: 3px solid rgba(148, 163, 184, 0.25);
+            border-top-color: #f59e0b;
+            border-right-color: #0ea5e9;
+            animation: materialChunkLoopSpin 0.9s linear infinite;
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+        }
+
+        @keyframes materialChunkLoopSpin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
 @endonce
 @if(isset($material['is_loaded']) && !$material['is_loaded'])
     @php
@@ -1956,7 +1991,10 @@
                                 // Modified: Sort by Type (Jenis) alphabetically as default, instead of grouping by Brand
                                 $orderedGroups['*'] = $material['data']->sortBy('type');
                             }
-                            $rowNumber = 1;
+                            $pagination = (array) ($material['pagination'] ?? []);
+                            $currentPage = max(1, (int) ($pagination['current_page'] ?? 1));
+                            $perPage = max(1, (int) ($pagination['per_page'] ?? count($material['data'])));
+                            $rowNumber = (($currentPage - 1) * $perPage) + 1;
                             $seenAnchors = [];
                         @endphp
                     <tbody>
@@ -2123,6 +2161,34 @@
                     @endforeach
                 </tbody>
             </table>
+            @php
+                $chunkParams = array_filter([
+                    'type' => $material['type'],
+                    'search' => request('search'),
+                    'sort_by' => request('sort_by'),
+                    'sort_direction' => request('sort_direction'),
+                    'letter' => request('letter'),
+                ], fn ($value) => $value !== null && $value !== '');
+                $chunkBaseUrl = route('materials.tab', $chunkParams);
+                $pagination = (array) ($material['pagination'] ?? []);
+                $currentPage = max(1, (int) ($pagination['current_page'] ?? 1));
+                $lastPage = max(1, (int) ($pagination['last_page'] ?? 1));
+                $nextPage = $currentPage < $lastPage ? $currentPage + 1 : null;
+            @endphp
+            <div class="material-chunk-state"
+                data-base-url="{{ $chunkBaseUrl }}"
+                data-current-page="{{ $currentPage }}"
+                data-last-page="{{ $lastPage }}"
+                data-next-page="{{ $nextPage ?? '' }}"
+                data-material-tab="{{ $material['type'] }}"
+                hidden></div>
+            <div class="material-chunk-sentinel"
+                data-material-tab="{{ $material['type'] }}"
+                style="height: {{ $nextPage ? '48px' : '1px' }}; display: {{ $nextPage ? 'flex' : 'none' }}; align-items: center; justify-content: center; color: #64748b; font-size: 12px; background: transparent;">
+                <span class="material-chunk-loading-indicator" aria-live="polite" aria-label="Memuat data berikutnya">
+                    <span class="material-chunk-loading-loop" aria-hidden="true"></span>
+                </span>
+            </div>
         </div>
         <form id="{{ $inlineFormId }}" data-inline-form method="POST" action="{{ route($material['type'] . 's.store') }}" enctype="multipart/form-data" style="display: none;">
             @csrf
