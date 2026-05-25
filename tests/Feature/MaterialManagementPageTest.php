@@ -98,6 +98,7 @@ class MaterialManagementPageTest extends TestCase
         $response->assertSee('Database Material');
         $response->assertSee('Alpha Brick');
         $response->assertSee('Roster');
+        $response->assertSee('data-material-tabs-scroll', false);
 
         Http::assertSent(function (ClientRequest $request) {
             if (! str_starts_with($request->url(), 'http://supply-be.test/api/v1/materials/brick')) {
@@ -266,6 +267,71 @@ class MaterialManagementPageTest extends TestCase
         ], false);
 
         Http::assertSentCount(3);
+    }
+
+    public function test_materials_index_shows_empty_search_message_when_active_tab_has_no_results(): void
+    {
+        $user = User::factory()->create([
+            'permission_snapshot' => ['materials.view'],
+        ]);
+
+        Http::fake([
+            'http://supply-be.test/api/v1/materials/summary' => Http::response([
+                'data' => [
+                    'families' => [
+                        'brick' => 0,
+                        'cement' => 0,
+                        'sand' => 0,
+                        'cat' => 0,
+                        'ceramic' => 0,
+                        'nat' => 0,
+                        'steel' => 0,
+                        'kasa_gypsum' => 0,
+                        'paku_tembak' => 0,
+                        'paku' => 0,
+                    ],
+                    'display_families' => [
+                        'brick' => 0,
+                        'cement' => 0,
+                        'sand' => 0,
+                        'cat' => 0,
+                        'ceramic' => 0,
+                        'steel' => 0,
+                        'kasa_gypsum' => 0,
+                        'paku_tembak' => 0,
+                        'paku' => 0,
+                    ],
+                    'grand_total' => 0,
+                ],
+            ], 200),
+            'http://supply-be.test/api/v1/materials/brick*' => Http::response([
+                'data' => [],
+                'current_page' => 1,
+                'per_page' => 50,
+                'total' => 0,
+                'last_page' => 1,
+            ], 200),
+            'http://supply-be.test/api/v1/units/grouped' => Http::response([
+                'success' => true,
+                'data' => [
+                    'brick' => [],
+                    'cement' => [],
+                    'nat' => [],
+                    'sand' => [],
+                    'cat' => [],
+                    'ceramic' => [],
+                    'steel' => [],
+                    'kasa_gypsum' => [],
+                    'paku_tembak' => [],
+                    'paku' => [],
+                ],
+            ], 200),
+        ]);
+
+        $response = $this->actingAs($user)->get('/materials?tab=brick&search=zzz');
+
+        $response->assertOk();
+        $response->assertSee('Tidak ada hasil pencarian di tab ini.');
     }
 
     public function test_material_create_forwards_payload_to_supply_be_and_redirects_back_to_family_tab(): void

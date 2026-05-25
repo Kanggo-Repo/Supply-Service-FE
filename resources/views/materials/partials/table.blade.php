@@ -378,8 +378,10 @@
                                 <th rowspan="2" style="text-align: left;"><div class="skeleton-box skeleton-w-60"></div></th>
                                 <th rowspan="2" style="text-align: center;"><div class="skeleton-box skeleton-w-20"></div></th>
                                 <th colspan="2" style="text-align: center;"><div class="skeleton-box skeleton-w-20"></div></th>
+                                @if($showStoreInfo)
                                 <th rowspan="2" style="text-align: left; width: 150px; min-width: 150px;"><div class="skeleton-box skeleton-w-50"></div></th>
                                 <th rowspan="2" style="text-align: left; width: 200px; min-width: 200px;"><div class="skeleton-box skeleton-w-70"></div></th>
+                                @endif
                                 <th colspan="3" style="text-align: center;"><div class="skeleton-box skeleton-w-40"></div></th>
                                 <th colspan="3" style="text-align: center;"><div class="skeleton-box skeleton-w-40"></div></th>
                                 <th rowspan="2" style="width: 90px; min-width: 90px;"><div class="skeleton-box skeleton-w-20"></div></th>
@@ -2006,6 +2008,13 @@
                                 'inlinePackageUnits' => $inlinePackageUnits ?? [],
                             ])
                         </tr>
+                        @if(collect($material['data'] ?? [])->isEmpty())
+                            <tr class="material-empty-search-row" data-non-material-row="true">
+                                <td colspan="99" style="padding: 18px 20px; text-align: center; color: #64748b; font-weight: 600; background: #fffdf7;">
+                                    {{ request('search') ? 'Tidak ada hasil pencarian di tab ini.' : 'Belum ada data material di tab ini.' }}
+                                </td>
+                            </tr>
+                        @endif
                         @foreach($orderedGroups as $letter => $items)
                             @foreach($items as $item)
                             @php

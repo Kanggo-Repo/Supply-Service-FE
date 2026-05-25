@@ -3,11 +3,11 @@
 @section('title', 'Database Satuan')
 
 @section('content')
-    <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+    <div class="unit-sticky-toolbar">
         <!-- Filter Form -->
         <form action="{{ route('units.index') }}" method="GET" style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 320px; margin: 0;">
             <div style="flex: 1;">
-                <select name="material_type" 
+                <select name="material_type"
                         style="width: 100%; padding: 11px 14px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 14px; font-family: inherit;">
                     <option value="">Semua Material Type</option>
                     @foreach($materialTypes as $type => $label)
@@ -34,10 +34,9 @@
 
     @if($units->count() > 0)
         <!-- Grid 2 Kolom Tabel -->
-        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;">
+        <div class="unit-table-grid">
             @php
-                // Ambil items dari paginator (sudah tersortir dari controller)
-                $unitsArray = $units->items();
+                $unitsArray = $units->values()->all();
 
                 $totalUnits = count($unitsArray);
                 $halfCount = ceil($totalUnits / 2);
@@ -111,12 +110,14 @@
                                 @endif
                             </td>
                             <td style="text-align: center;">
-                                <div style="display: flex; gap: 4px; flex-wrap: wrap; justify-content: center;">
+                                <div class="unit-material-scroll-shell">
+                                    <div class="unit-material-scroll-track">
                                     @foreach($unit->materialTypes as $mt)
                                         <span style="display: inline-block; padding: 4px 8px; background: #f1f5f9; border-radius: 6px; font-size: 11px; font-weight: 600; color: #475569;">
                                             {{ $materialTypes[$mt->material_type] ?? ucfirst($mt->material_type) }}
                                         </span>
                                     @endforeach
+                                    </div>
                                 </div>
                             </td>
                             <td class="text-center">
@@ -191,12 +192,14 @@
                                 @endif
                             </td>
                             <td style="text-align: center;">
-                                <div style="display: flex; gap: 4px; flex-wrap: wrap; justify-content: center;">
+                                <div class="unit-material-scroll-shell">
+                                    <div class="unit-material-scroll-track">
                                     @foreach($unit->materialTypes as $mt)
                                         <span style="display: inline-block; padding: 4px 8px; background: #f1f5f9; border-radius: 6px; font-size: 11px; font-weight: 600; color: #475569;">
                                             {{ $materialTypes[$mt->material_type] ?? ucfirst($mt->material_type) }}
                                         </span>
                                     @endforeach
+                                    </div>
                                 </div>
                             </td>
                             <td class="text-center">
@@ -229,10 +232,6 @@
             </div>
         </div>
 
-        <!-- Pagination -->
-        <div style="margin-top: 24px;">
-            {{ $units->links() }}
-        </div>
     @else
         <div class="empty-state">
             <div class="empty-state-icon">📦</div>
@@ -409,7 +408,6 @@
 
 #floatingModal .floating-modal-body label {
     display: block;
-    margin-bottom: 8px;
     font-weight: 500;
     color: #475569;
     font-size: 14px;
@@ -475,6 +473,96 @@ th.sortable i {
     font-size: 32px;
 }
 
+.unit-sticky-toolbar {
+    position: sticky;
+    top: 72px;
+    z-index: 140;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(245, 247, 250, 0.96);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+.unit-table-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+}
+
+.unit-table-grid .table-container {
+    max-height: calc(100vh - 220px);
+    overflow-y: auto !important;
+    overflow-x: auto !important;
+    margin-top: 0 !important;
+}
+
+.unit-table-grid .table-container thead th {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    box-shadow:
+        inset 0 -1px 0 rgba(255, 255, 255, 0.12),
+        0 2px 0 rgba(0, 0, 0, 0.08);
+}
+
+@media (max-width: 1024px) {
+    .unit-table-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .unit-table-grid .table-container {
+        max-height: none;
+    }
+}
+
+.unit-material-scroll-shell {
+    position: relative;
+    max-width: 150px;
+    margin: 0 auto;
+}
+
+.unit-material-scroll-shell.is-overflowing::after {
+    content: '...';
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
+    padding-left: 10px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, #ffffff 40%);
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    pointer-events: none;
+}
+
+.unit-material-scroll-shell.at-end::after {
+    opacity: 0;
+}
+
+.unit-material-scroll-track {
+    display: flex;
+    gap: 4px;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding-bottom: 2px;
+}
+
+.unit-material-scroll-track::-webkit-scrollbar {
+    display: none;
+}
+
 </style>
 
 <script>
@@ -499,6 +587,21 @@ document.addEventListener('DOMContentLoaded', function() {
             form.addEventListener('input', () => { isFormDirty = true; });
             form.addEventListener('change', () => { isFormDirty = true; });
         }
+    }
+
+    function runInlineScripts(container) {
+        const scripts = container.querySelectorAll('script');
+
+        scripts.forEach((script) => {
+            const executableScript = document.createElement('script');
+
+            Array.from(script.attributes).forEach((attribute) => {
+                executableScript.setAttribute(attribute.name, attribute.value);
+            });
+
+            executableScript.textContent = script.textContent;
+            script.parentNode?.replaceChild(executableScript, script);
+        });
     }
 
     // Open modal
@@ -533,8 +636,9 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(html => {
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
-                const content = doc.querySelector('form') || doc.querySelector('.card') || doc.body;
+                const content = doc.querySelector('.unit-modal-fragment') || doc.querySelector('.unit-modal-card') || doc.querySelector('.card') || doc.querySelector('form') || doc.body;
                 modalBody.innerHTML = content ? content.outerHTML : html;
+                runInlineScripts(modalBody);
                 interceptFormSubmit();
             })
             .catch(err => {
@@ -574,6 +678,27 @@ document.addEventListener('DOMContentLoaded', function() {
             window.closeFloatingModalLocal();
         }
     });
+
+    document.querySelectorAll('.unit-material-scroll-shell').forEach(shell => {
+        const track = shell.querySelector('.unit-material-scroll-track');
+
+        if (!track) {
+            return;
+        }
+
+        const syncOverflowState = () => {
+            const hasOverflow = track.scrollWidth - track.clientWidth > 4;
+            const isAtEnd = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
+
+            shell.classList.toggle('is-overflowing', hasOverflow);
+            shell.classList.toggle('at-end', !hasOverflow || isAtEnd);
+        };
+
+        track.addEventListener('scroll', syncOverflowState, { passive: true });
+        window.addEventListener('resize', syncOverflowState, { passive: true });
+        syncOverflowState();
+    });
+
 });
 </script>
 @endsection

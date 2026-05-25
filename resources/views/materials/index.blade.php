@@ -1040,9 +1040,13 @@ html.materials-booting .page-content {
   }
 /* Sticky footer styles removed - footer is now static */
 .material-tab-header {
+    display: flex;
+    flex-wrap: nowrap !important;
+    align-items: flex-end;
+    min-width: 0;
     gap: 12px;
     padding-top: 10px;
-    padding-bottom: 2px;
+    padding-bottom: 0;
     margin-bottom: 0;
 }
 .material-tab-header::after {
@@ -1050,19 +1054,79 @@ html.materials-booting .page-content {
 }
 .material-tab-header .material-tabs {
     position: relative;
-    flex: 1 1 67%;
+    display: flex;
+    flex-wrap: nowrap !important;
+    align-items: flex-end;
+    gap: 10px;
+    flex: 1 1 0;
     width: auto;
+    min-width: 0;
     top: 0;
     bottom: 0;
     padding-top: 2px;
     z-index: 40;
+    overflow: visible !important;
+}
+.material-tab-header .material-tabs::before,
+.material-tab-header .material-tabs::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    bottom: 0;
+    width: 28px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+    z-index: 6;
+}
+.material-tab-header .material-tabs::before {
+    left: 0;
+    background:
+        linear-gradient(90deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.28) 58%, rgba(255, 255, 255, 0)),
+        linear-gradient(90deg, rgba(137, 19, 19, 0.18), rgba(137, 19, 19, 0));
+    box-shadow: inset 14px 0 18px -16px rgba(137, 19, 19, 0.55);
+}
+.material-tab-header .material-tabs::after {
+    right: var(--material-tab-shadow-right-offset, 104px);
+    background:
+        linear-gradient(270deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.28) 58%, rgba(255, 255, 255, 0)),
+        linear-gradient(270deg, rgba(137, 19, 19, 0.18), rgba(137, 19, 19, 0));
+    box-shadow: inset -14px 0 18px -16px rgba(137, 19, 19, 0.55);
+}
+.material-tab-header .material-tabs.has-overflow-left::before,
+.material-tab-header .material-tabs.has-overflow-right::after {
+    opacity: 1 !important;
+}
+.material-tab-header .material-tabs-scroll {
+    flex: 1 1 0;
+    width: auto;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    scrollbar-color: transparent transparent;
+    padding: 2px 0 0;
+    overscroll-behavior-x: contain;
+}
+.material-tab-header .material-tabs-scroll::-webkit-scrollbar {
+    display: none;
+}
+.material-tab-header .material-tabs-track {
+    display: inline-flex;
+    align-items: flex-end;
+    flex-wrap: nowrap;
+    min-width: max-content;
+    gap: 4px;
+    padding-right: 4px;
 }
 .material-tab-header .material-settings-menu {
-    left: 0;
-    right: auto;
-    width: max-content !important;
-    min-width: 400px !important;
-    max-width: 560px !important;
+      left: auto;
+      right: 0;
+      width: max-content !important;
+      min-width: 400px !important;
+      max-width: 560px !important;
     top: 100% !important;
     margin-top: -1px;
     border-top-left-radius: 0 !important;
@@ -1083,7 +1147,8 @@ html.materials-booting .page-content {
     flex: 0 0 auto;
     display: flex;
     align-items: flex-end;
-    justify-content: flex-start;
+    justify-content: flex-end;
+    margin-left: auto;
     z-index: 45;
 }
 /* Override global.css for filter button - use original yellow color */
@@ -1166,7 +1231,7 @@ html.materials-booting .page-content {
     content: "" !important;
 }
 .material-tab-actions {
-    flex: 0 0 auto;
+    flex: 0 1 auto;
     max-width: none;
     width: auto;
     display: flex;
@@ -1176,6 +1241,8 @@ html.materials-booting .page-content {
     padding-left: 10px;
     position: relative;
     z-index: 10;
+    min-width: 0;
+    white-space: nowrap;
 }
 .material-tab-action {
     display: none;
@@ -1343,6 +1410,7 @@ html.materials-booting .page-content {
 }
 .material-search-form {
     display: flex;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 8px;
     flex: 0 1 auto;
@@ -1393,7 +1461,7 @@ html.materials-booting .page-content {
 }
 @media (max-width: 1200px) {
     .material-tab-header {
-        flex-wrap: wrap;
+        flex-wrap: nowrap !important;
     }
     .material-tab-header .material-tabs,
     .material-search-input {
@@ -1428,11 +1496,9 @@ html.materials-booting .page-content {
       background: rgba(148, 163, 184, 0.25);
   }
   .material-tab-actions {
-        flex: 1 1 100%;
-        max-width: 100%;
-    }
-    .material-tab-actions {
-        margin-top: 8px;
+        flex: 0 1 auto;
+        max-width: none;
+        margin-top: 0;
     }
 }
 /* Make table scrollable with sticky header */
@@ -1492,18 +1558,22 @@ html.materials-booting .page-content {
     <div class="material-tab-wrapper">
         <div class="material-tab-header">
             <div class="material-tabs">
-                @foreach($materials as $material)
-                    <button type="button"
-                            class="material-tab-btn {{ $material['type'] === $activeTab ? 'active' : '' }}"
-                            data-tab="{{ $material['type'] }}"
-                            data-search-count="{{ $material['count'] }}"
-                            aria-selected="{{ $material['type'] === $activeTab ? 'true' : 'false' }}">
-                        <span class="material-tab-label">{{ $material['label'] }}</span>
-                        <span class="material-tab-badge">
-                            @format($material['db_count'] ?? $material['count'])
-                        </span>
-                    </button>
-                @endforeach
+                <div class="material-tabs-scroll" data-material-tabs-scroll>
+                    <div class="material-tabs-track">
+                        @foreach($materials as $material)
+                            <button type="button"
+                                    class="material-tab-btn {{ $material['type'] === $activeTab ? 'active' : '' }}"
+                                    data-tab="{{ $material['type'] }}"
+                                    data-search-count="{{ $material['count'] }}"
+                                    aria-selected="{{ $material['type'] === $activeTab ? 'true' : 'false' }}">
+                                <span class="material-tab-label">{{ $material['label'] }}</span>
+                                <span class="material-tab-badge">
+                                    @format($material['db_count'] ?? $material['count'])
+                                </span>
+                            </button>
+                        @endforeach
+                    </div>
+                </div>
 
                 <div class="material-settings-dropdown">
                     <button type="button" id="materialSettingsToggle" class="material-settings-btn">
@@ -1832,6 +1902,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const allTabButtons = document.querySelectorAll('.material-tab-btn');
     const allTabPanels = document.querySelectorAll('.material-tab-panel');
     const allTabActions = document.querySelectorAll('.material-tab-action');
+    const tabContainer = document.querySelector('.material-tabs');
+    const tabSettingsDropdown = document.querySelector('.material-settings-dropdown');
+    const tabScroll = document.querySelector('[data-material-tabs-scroll]');
+    const tabTrack = document.querySelector('.material-tabs-track');
 
     // Handle Checkbox UI state (add/remove checked class)
     function updateCheckboxUI(checkbox) {
@@ -1848,6 +1922,144 @@ document.addEventListener('DOMContentLoaded', function() {
     // Tab switching function (declared early to avoid reference errors)
     const tabButtons = Array.from(allTabButtons);
     const tabPanels = Array.from(allTabPanels);
+
+    function getVisibleMaterialTabButtons() {
+        return tabButtons.filter(btn => window.getComputedStyle(btn).display !== 'none');
+    }
+
+    function syncMaterialTabOverflowIndicators() {
+        if (!tabScroll || !tabContainer) return;
+
+        const rightOffset = tabSettingsDropdown
+            ? Math.max(0, tabSettingsDropdown.offsetWidth + 10)
+            : 104;
+        tabContainer.style.setProperty('--material-tab-shadow-right-offset', `${rightOffset}px`);
+
+        const maxScrollLeft = Math.max(0, tabScroll.scrollWidth - tabScroll.clientWidth);
+        const tolerance = 4;
+        const hasScrollableOverflow = maxScrollLeft > tolerance;
+        const hasLeft = hasScrollableOverflow && tabScroll.scrollLeft > tolerance;
+        const hasRight = hasScrollableOverflow && tabScroll.scrollLeft < (maxScrollLeft - tolerance);
+
+        tabContainer.classList.toggle('has-overflow-left', hasLeft);
+        tabContainer.classList.toggle('has-overflow-right', hasRight);
+    }
+
+    function syncMaterialTabFeet() {
+        const settingsBtn = document.querySelector('.material-settings-btn');
+        const visibleButtons = getVisibleMaterialTabButtons();
+
+        syncMaterialTabOverflowIndicators();
+
+        tabButtons.forEach(btn => btn.classList.remove('first-visible', 'last-visible', 'before-filter'));
+
+        if (settingsBtn) {
+            settingsBtn.classList.remove('first-visible', 'last-visible');
+        }
+
+        if (!visibleButtons.length) {
+            if (settingsBtn) {
+                settingsBtn.classList.add('first-visible', 'last-visible');
+            }
+
+            return;
+        }
+
+        let firstVisible = visibleButtons[0];
+        let lastVisible = visibleButtons[visibleButtons.length - 1];
+
+        if (tabScroll) {
+            const scrollRect = tabScroll.getBoundingClientRect();
+            const tolerance = 6;
+            const viewportButtons = visibleButtons.filter(btn => {
+                const rect = btn.getBoundingClientRect();
+
+                return rect.right > scrollRect.left + tolerance
+                    && rect.left < scrollRect.right - tolerance;
+            });
+
+            if (viewportButtons.length) {
+                firstVisible = viewportButtons[0];
+                lastVisible = viewportButtons[viewportButtons.length - 1];
+            }
+        }
+
+        firstVisible.classList.add('first-visible');
+        lastVisible.classList.add('last-visible');
+
+        if (settingsBtn) {
+            settingsBtn.classList.add('last-visible');
+        }
+    }
+
+    function keepActiveMaterialTabInView(materialType = null) {
+        if (!tabScroll) return;
+
+        const activeButton = materialType
+            ? document.querySelector(`.material-tab-btn[data-tab="${materialType}"]`)
+            : document.querySelector('.material-tab-btn.active');
+
+        if (!activeButton || window.getComputedStyle(activeButton).display === 'none') {
+            return;
+        }
+
+        const currentLeft = tabScroll.scrollLeft;
+        const viewportLeft = currentLeft;
+        const viewportRight = currentLeft + tabScroll.clientWidth;
+        const buttonLeft = activeButton.offsetLeft;
+        const buttonRight = buttonLeft + activeButton.offsetWidth;
+        const padding = 18;
+
+        if (buttonLeft < viewportLeft + padding) {
+            tabScroll.scrollTo({
+                left: Math.max(0, buttonLeft - padding),
+                behavior: 'smooth',
+            });
+        } else if (buttonRight > viewportRight - padding) {
+            tabScroll.scrollTo({
+                left: Math.max(0, buttonRight - tabScroll.clientWidth + padding),
+                behavior: 'smooth',
+            });
+        } else {
+            window.requestAnimationFrame(syncMaterialTabFeet);
+        }
+    }
+
+    function initializeMaterialTabScroller() {
+        if (!tabScroll || tabScroll.dataset.materialTabsBound === '1') {
+            window.requestAnimationFrame(syncMaterialTabFeet);
+            return;
+        }
+
+        tabScroll.dataset.materialTabsBound = '1';
+
+        tabScroll.addEventListener('scroll', () => {
+            window.requestAnimationFrame(syncMaterialTabFeet);
+        }, { passive: true });
+
+        tabScroll.addEventListener('wheel', (event) => {
+            if (tabScroll.scrollWidth <= tabScroll.clientWidth + 2) {
+                return;
+            }
+
+            const horizontalDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY)
+                ? event.deltaX
+                : event.deltaY;
+
+            if (Math.abs(horizontalDelta) < 1) {
+                return;
+            }
+
+            event.preventDefault();
+            tabScroll.scrollLeft += horizontalDelta;
+        }, { passive: false });
+
+        window.addEventListener('resize', () => {
+            window.requestAnimationFrame(syncMaterialTabFeet);
+        });
+
+        window.requestAnimationFrame(syncMaterialTabFeet);
+    }
 
     // Sticky footer functionality removed - footer is now static
     // let stickyTicking = false;
@@ -1888,6 +2100,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (btn && panel) {
             btn.classList.remove('hidden');
             btn.classList.add('active');
+            keepActiveMaterialTabInView(materialType);
 
             panel.classList.remove('hidden'); // Remove hidden first
             // Small delay to allow display:block to apply before adding active class (for transitions if any)
@@ -1900,6 +2113,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (tabAction) {
                 tabAction.classList.add('active');
             }
+
+            window.requestAnimationFrame(syncMaterialTabFeet);
 
             // Lazy Load Logic
             const loadingEl = panel.querySelector('.material-tab-loading');
@@ -2014,9 +2229,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Function to reorder tabs based on materialOrder
     function reorderTabs(orderOverride = null) {
         const tabContainer = document.querySelector('.material-tabs');
-        if (!tabContainer) return;
-        
-        const settingsDropdown = tabContainer.querySelector('.material-settings-dropdown');
+        if (!tabContainer || !tabTrack) return;
+
         const order = Array.isArray(orderOverride) && orderOverride.length ? orderOverride : materialOrder;
 
         // Create a map of current tab buttons
@@ -2030,53 +2244,25 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         // Also remove classes from settings button
-        const settingsBtn = settingsDropdown?.querySelector('.material-settings-btn');
+        const settingsBtn = document.querySelector('.material-settings-btn');
         if (settingsBtn) {
             settingsBtn.classList.remove('first-visible', 'last-visible');
         }
 
-        // Only reorder and add classes if materialOrder has items
+        // Only reorder tabs when materialOrder has items
         if (order.length > 0) {
-            // Reorder based on order
-            order.forEach((type, index) => {
+            order.forEach((type) => {
                 if (tabButtons[type]) {
-                    tabContainer.appendChild(tabButtons[type]);
-
-                    // Add position classes for concave legs styling
-                    if (index === 0) {
-                        tabButtons[type].classList.add('first-visible');
-                    }
-                    // If this is the last tab and settings dropdown exists, mark as before-filter
-                    if (index === order.length - 1 && settingsDropdown) {
-                        tabButtons[type].classList.add('before-filter');
-                    }
-                    // Only add last-visible if there's no settings dropdown
-                    if (index === order.length - 1 && !settingsDropdown) {
-                        tabButtons[type].classList.add('last-visible');
-                    }
+                    tabTrack.appendChild(tabButtons[type]);
                 }
             });
-
-            // Always move settings dropdown to the end
-            if (settingsDropdown) {
-                tabContainer.appendChild(settingsDropdown);
-                // Settings button is always last visible when present
-                if (settingsBtn) {
-                    settingsBtn.classList.add('last-visible');
-                }
-            }
         } else {
-            // If no material tabs visible, only filter button is present
-            // Move settings dropdown to container (it's the only visible element)
-            if (settingsDropdown) {
-                tabContainer.appendChild(settingsDropdown);
-                // When only filter is visible, it's both first and last
-                // But CSS .material-tabs.only-filter handles removing the feet
-                if (settingsBtn) {
-                    settingsBtn.classList.add('first-visible', 'last-visible');
-                }
+            if (settingsBtn) {
+                settingsBtn.classList.add('first-visible', 'last-visible');
             }
         }
+
+        window.requestAnimationFrame(syncMaterialTabFeet);
     }
 
     function getTabSearchCounts() {
@@ -2199,6 +2385,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
             setActiveTab(tabToActivate);
         }
+
+        window.requestAnimationFrame(() => {
+            keepActiveMaterialTabInView();
+            syncMaterialTabFeet();
+        });
 
         // Save to localStorage
         saveFilterToLocalStorage(checkedMaterials, materialOrder);
@@ -4798,6 +4989,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    initializeMaterialTabScroller();
+
     // --- Save Current State for Navbar Return ---
     // Save the full current URL to localStorage on page load
     localStorage.setItem('lastMaterialsUrl', window.location.href);
@@ -5361,7 +5554,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function getSearchableBodyRows(tbody) {
         if (!tbody) return [];
-        return Array.from(tbody.rows).filter(row => !row.classList.contains('material-inline-editor-row'));
+        return Array.from(tbody.rows).filter(row => {
+            if (row.classList.contains('material-inline-editor-row')) {
+                return false;
+            }
+
+            return row.dataset.nonMaterialRow !== 'true';
+        });
     }
 
     function updateRowNumbers(tbody) {
@@ -5995,6 +6194,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('resize', () => {
         window.requestAnimationFrame(() => {
             applyAllStickyOffsets();
+            syncMaterialTabFeet();
         });
     });
 

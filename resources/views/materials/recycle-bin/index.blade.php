@@ -144,7 +144,6 @@ body.recycle-bin-lock .page-content {
     border: 2px solid var(--recycle-accent-bg);
     border-bottom: none;
     border-radius: 12px 12px 0 0;
-    background: #f8f5cc;
     color: #1f2937;
     padding: 10px 12px 8px;
     font-weight: 700;
@@ -745,10 +744,6 @@ body.recycle-bin-lock .page-content {
     box-sizing: border-box;
 }
 
-.recycle-flash-stack {
-    flex: 0 0 auto;
-}
-
 .material-tab-panel.active {
     display: flex;
 }
@@ -793,16 +788,6 @@ body.recycle-bin-lock .page-content {
                 <h1 class="recycle-page-title">Recycle Bin Material</h1>
             </div>
         </div>
-    </div>
-
-    <div class="recycle-flash-stack">
-        @if(session('success'))
-            <div class="alert alert-success mb-3">{{ session('success') }}</div>
-        @endif
-
-        @if(session('error'))
-            <div class="alert alert-danger mb-3">{{ session('error') }}</div>
-        @endif
     </div>
 
     @if(count($materialTypes) > 0)

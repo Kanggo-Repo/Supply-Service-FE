@@ -7,7 +7,6 @@ use App\Services\Supply\SupplyServiceValidationException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Throwable;
 
@@ -19,20 +18,18 @@ class UnitManagementController extends Controller
 
     public function index(Request $request): View
     {
-        $payload = [
-            'data' => [],
-            'pagination' => ['current_page' => 1, 'per_page' => 20, 'total' => 0],
-        ];
+        $units = collect();
         $typesPayload = ['data' => []];
         $error = null;
 
         try {
             $payload = $this->supplyServiceClient->listUnits([
+                'all' => 1,
                 'material_type' => $request->query('material_type'),
                 'sort_by' => $request->query('sort_by'),
                 'sort_direction' => $request->query('sort_direction'),
-                'per_page' => $request->query('per_page', 20),
             ], $request->user());
+            $units = $this->toUnits($payload);
             $typesPayload = $this->supplyServiceClient->materialTypes($request->user());
         } catch (Throwable $exception) {
             report($exception);
@@ -46,7 +43,7 @@ class UnitManagementController extends Controller
 
         return view('units.index', [
             'activeNav' => 'units',
-            'units' => $this->toUnitPaginator($payload, $request),
+            'units' => $units,
             'materialTypes' => $materialTypes,
             'error' => $error,
         ]);
@@ -138,26 +135,11 @@ class UnitManagementController extends Controller
         ];
     }
 
-    /**
-     * @param  array<string, mixed>  $payload
-     */
-    private function toUnitPaginator(array $payload, Request $request): LengthAwarePaginator
+    private function toUnits(array $payload): Collection
     {
-        $pagination = (array) ($payload['pagination'] ?? []);
-        $currentPage = max(1, (int) ($pagination['current_page'] ?? $request->integer('page', 1)));
-        $perPage = max(1, (int) ($pagination['per_page'] ?? $request->integer('per_page', 20)));
-        $total = max(0, (int) ($pagination['total'] ?? count((array) ($payload['data'] ?? []))));
-
-        return new LengthAwarePaginator(
-            array_map(fn (array $unit): object => $this->hydrateUnit($unit), (array) ($payload['data'] ?? [])),
-            $total,
-            $perPage,
-            $currentPage,
-            [
-                'path' => $request->url(),
-                'query' => $request->query(),
-            ],
-        );
+        return collect((array) ($payload['data'] ?? []))
+            ->map(fn (array $unit): object => $this->hydrateUnit($unit))
+            ->values();
     }
 
     /**

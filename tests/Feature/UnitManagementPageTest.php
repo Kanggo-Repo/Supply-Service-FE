@@ -42,12 +42,6 @@ class UnitManagementPageTest extends TestCase
                         'material_types' => ['cement', 'sand'],
                     ],
                 ],
-                'pagination' => [
-                    'current_page' => 1,
-                    'per_page' => 20,
-                    'total' => 1,
-                    'last_page' => 1,
-                ],
             ], 200),
             'http://supply-be.test/api/v1/units/material-types' => Http::response([
                 'success' => true,
@@ -64,6 +58,11 @@ class UnitManagementPageTest extends TestCase
         $response->assertSee('Database Unit');
         $response->assertSee('Sak');
         $response->assertSee('Semen');
+
+        Http::assertSent(fn (ClientRequest $request) => $request->method() === 'GET'
+            && str_contains($request->url(), 'http://supply-be.test/api/v1/units?')
+            && str_contains($request->url(), 'all=1')
+            && str_contains($request->url(), 'material_type=cement'));
     }
 
     public function test_unit_create_update_and_delete_forward_to_supply_be(): void
