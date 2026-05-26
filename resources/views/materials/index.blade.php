@@ -5802,13 +5802,114 @@ document.addEventListener('DOMContentLoaded', function() {
             .forEach(letter => appendMaterialLetterLink(panel, materialType, letter));
     }
 
-    async function loadNextMaterialChunk(panel) {
-        const state = panel.querySelector('.material-chunk-state');
+    function getMaterialChunkState(panel) {
+        return panel ? panel.querySelector('.material-chunk-state') : null;
+    }
+
+    function getMaterialLetterPage(panel, letter) {
+        const state = getMaterialChunkState(panel);
+        if (!state || !letter) return null;
+
+        if (!state.__materialLetterPages) {
+            try {
+                const parsed = JSON.parse(state.dataset.letterPages || '{}');
+                state.__materialLetterPages = parsed && typeof parsed === 'object' ? parsed : {};
+            } catch (error) {
+                state.__materialLetterPages = {};
+            }
+        }
+
+        const page = Number.parseInt(state.__materialLetterPages[String(letter).toUpperCase()] || '', 10);
+        return Number.isFinite(page) && page > 0 ? page : null;
+    }
+
+    async function fetchMaterialChunkPage(panel, page) {
+        const state = getMaterialChunkState(panel);
+        if (!state) {
+            throw new Error('Material chunk state not found.');
+        }
+
+        const url = new URL(state.dataset.baseUrl, window.location.origin);
+        url.searchParams.set('page', String(page));
+
+        const response = await fetch(url.toString(), {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+
+        const html = await response.text();
+        const parser = new DOMParser();
+        const parsed = parser.parseFromString(html, 'text/html');
+        const incomingTbody = parsed.querySelector('tbody');
+        const nextState = parsed.querySelector('.material-chunk-state');
+
+        if (!incomingTbody || !nextState) {
+            throw new Error('Material chunk response shape is invalid.');
+        }
+
+        const incomingRows = Array.from(incomingTbody.querySelectorAll('tr'))
+            .filter(row => !row.classList.contains('material-inline-editor-row'));
+
+        return {
+            page,
+            incomingRows,
+            nextState,
+        };
+    }
+
+    function applyMaterialChunkPayload(panel, payload) {
+        const state = getMaterialChunkState(panel);
         const sentinel = panel.querySelector('.material-chunk-sentinel');
-        const tableContainer = panel.querySelector('.table-container');
         const tbody = panel.querySelector('tbody');
 
-        if (!state || !sentinel || !tableContainer || !tbody) return false;
+        if (!state || !sentinel || !tbody || !payload) return false;
+
+        const fragment = document.createDocumentFragment();
+        payload.incomingRows.forEach(row => {
+            if (row.id && document.getElementById(row.id)) {
+                row.removeAttribute('id');
+            }
+
+            fragment.appendChild(row);
+        });
+
+        tbody.appendChild(fragment);
+
+        state.dataset.currentPage = payload.nextState.dataset.currentPage || String(payload.page);
+        state.dataset.lastPage = payload.nextState.dataset.lastPage || state.dataset.lastPage;
+        state.dataset.nextPage = payload.nextState.dataset.nextPage || '';
+
+        const hasMore = state.dataset.nextPage !== '';
+        sentinel.style.display = hasMore ? 'flex' : 'none';
+        sentinel.style.height = hasMore ? '48px' : '1px';
+
+        updateRowNumbers(tbody);
+        syncMaterialLetterLinks(panel);
+
+        if (hasSearchQuery) {
+            setupSearchEnhancements();
+        }
+
+        if (typeof applyAllStickyOffsets === 'function') {
+            window.requestAnimationFrame(() => applyAllStickyOffsets());
+        }
+
+        updateActivePaginationLetter();
+
+        return true;
+    }
+
+    async function loadNextMaterialChunk(panel) {
+        const state = getMaterialChunkState(panel);
+        const sentinel = panel.querySelector('.material-chunk-sentinel');
+        const tableContainer = panel.querySelector('.table-container');
+
+        if (!state || !sentinel || !tableContainer) return false;
         if (state.dataset.loading === 'true') return false;
 
         const nextPage = Number.parseInt(state.dataset.nextPage || '', 10);
@@ -5824,71 +5925,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         try {
-            const url = new URL(state.dataset.baseUrl, window.location.origin);
-            url.searchParams.set('page', String(nextPage));
+            const payload = await fetchMaterialChunkPage(panel, nextPage);
 
-            const response = await fetch(url.toString(), {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-
-            const html = await response.text();
-            const parser = new DOMParser();
-            const parsed = parser.parseFromString(html, 'text/html');
-            const incomingTbody = parsed.querySelector('tbody');
-            const nextState = parsed.querySelector('.material-chunk-state');
-
-            if (!incomingTbody || !nextState) {
-                return false;
-            }
-
-            const incomingRows = Array.from(incomingTbody.querySelectorAll('tr'))
-                .filter(row => !row.classList.contains('material-inline-editor-row'));
-
-            if (!incomingRows.length) {
+            if (!payload.incomingRows.length) {
                 state.dataset.nextPage = '';
                 sentinel.style.display = 'none';
                 return false;
             }
 
-            const fragment = document.createDocumentFragment();
-            incomingRows.forEach(row => {
-                if (row.id && document.getElementById(row.id)) {
-                    row.removeAttribute('id');
-                }
-
-                fragment.appendChild(row);
-            });
-
-            tbody.appendChild(fragment);
-
-            state.dataset.currentPage = nextState.dataset.currentPage || state.dataset.currentPage;
-            state.dataset.lastPage = nextState.dataset.lastPage || state.dataset.lastPage;
-            state.dataset.nextPage = nextState.dataset.nextPage || '';
-
-            const hasMore = state.dataset.nextPage !== '';
-            sentinel.style.display = hasMore ? 'flex' : 'none';
-            sentinel.style.height = hasMore ? '48px' : '1px';
-
-            updateRowNumbers(tbody);
-            syncMaterialLetterLinks(panel);
-
-            if (hasSearchQuery) {
-                setupSearchEnhancements();
-            }
-
-            if (typeof applyAllStickyOffsets === 'function') {
-                window.requestAnimationFrame(() => applyAllStickyOffsets());
-            }
-
-            updateActivePaginationLetter();
-
-            return true;
+            return applyMaterialChunkPayload(panel, payload);
         } catch (error) {
             console.error('Failed to load material chunk:', error);
             if (typeof window.showToast === 'function') {
@@ -5906,6 +5951,54 @@ document.addEventListener('DOMContentLoaded', function() {
     async function ensureMaterialAnchorLoaded(panel, targetId) {
         if (!panel || !targetId) return false;
         if (document.getElementById(targetId)) return true;
+
+        const parsed = parseAnchorBrandLetter(targetId);
+        const state = getMaterialChunkState(panel);
+        const currentPage = Number.parseInt(state?.dataset.currentPage || '1', 10);
+        const targetPage = parsed ? getMaterialLetterPage(panel, parsed.letter) : null;
+
+        if (targetPage && Number.isFinite(currentPage) && targetPage > currentPage) {
+            const sentinel = panel.querySelector('.material-chunk-sentinel');
+            const loadingIndicator = sentinel?.querySelector('.material-chunk-loading-indicator');
+            if (state) {
+                state.dataset.loading = 'true';
+            }
+            if (loadingIndicator) {
+                loadingIndicator.classList.add('is-visible');
+            }
+
+            try {
+                const pagesToFetch = [];
+                for (let page = currentPage + 1; page <= targetPage; page += 1) {
+                    pagesToFetch.push(page);
+                }
+
+                const payloads = await Promise.all(
+                    pagesToFetch.map(page => fetchMaterialChunkPage(panel, page))
+                );
+
+                payloads
+                    .sort((a, b) => a.page - b.page)
+                    .forEach(payload => {
+                        if (payload.incomingRows.length) {
+                            applyMaterialChunkPayload(panel, payload);
+                        }
+                    });
+            } catch (error) {
+                console.error('Failed to preload material letter pages:', error);
+            } finally {
+                if (state) {
+                    state.dataset.loading = 'false';
+                }
+                if (loadingIndicator) {
+                    loadingIndicator.classList.remove('is-visible');
+                }
+            }
+
+            if (document.getElementById(targetId)) {
+                return true;
+            }
+        }
 
         while (await loadNextMaterialChunk(panel)) {
             if (document.getElementById(targetId)) {

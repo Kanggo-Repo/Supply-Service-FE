@@ -654,10 +654,54 @@ class MaterialDonorController extends Controller
     private function castNumericIfNeeded(array $fieldDefinitions, string $field, mixed $value): mixed
     {
         $type = data_get($fieldDefinitions, "{$field}.type");
-        if (! is_numeric($value) || ! in_array($type, ['number', 'decimal'], true)) {
+        if (! in_array($type, ['number', 'decimal'], true)) {
             return $value;
         }
 
-        return $type === 'number' ? (int) $value : (float) $value;
+        $normalized = $this->normalizeNumericInput($value);
+        if (! is_numeric($normalized)) {
+            return $value;
+        }
+
+        return $type === 'number' ? (int) $normalized : (float) $normalized;
+    }
+
+    private function normalizeNumericInput(mixed $value): mixed
+    {
+        if (! is_string($value)) {
+            return $value;
+        }
+
+        $normalized = trim($value);
+        if ($normalized === '') {
+            return $normalized;
+        }
+
+        $normalized = preg_replace('/[\s\x{00A0}]+/u', '', $normalized) ?? $normalized;
+
+        $hasComma = str_contains($normalized, ',');
+        $hasDot = str_contains($normalized, '.');
+
+        if ($hasComma && $hasDot) {
+            if (strrpos($normalized, ',') > strrpos($normalized, '.')) {
+                $normalized = str_replace('.', '', $normalized);
+                $normalized = str_replace(',', '.', $normalized);
+            } else {
+                $normalized = str_replace(',', '', $normalized);
+            }
+        } elseif ($hasComma) {
+            if (preg_match('/^-?\d{1,3}(,\d{3})+$/', $normalized) === 1) {
+                $normalized = str_replace(',', '', $normalized);
+            } else {
+                $normalized = str_replace(',', '.', $normalized);
+            }
+        } elseif ($hasDot) {
+            if (! str_starts_with($normalized, '0.') && ! str_starts_with($normalized, '-0.')
+                && preg_match('/^-?\d{1,3}(\.\d{3})+$/', $normalized) === 1) {
+                $normalized = str_replace('.', '', $normalized);
+            }
+        }
+
+        return $normalized;
     }
 }

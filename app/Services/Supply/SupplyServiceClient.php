@@ -34,6 +34,14 @@ class SupplyServiceClient
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function storeSidebarSummary(?User $user): array
+    {
+        return $this->get('api/v1/stores/sidebar-summary', $user);
+    }
+
+    /**
      * @param  array<string, mixed>  $filters
      * @return array<string, mixed>
      */

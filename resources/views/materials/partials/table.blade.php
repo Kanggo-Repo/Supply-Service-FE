@@ -2190,6 +2190,7 @@
                 data-last-page="{{ $lastPage }}"
                 data-next-page="{{ $nextPage ?? '' }}"
                 data-material-tab="{{ $material['type'] }}"
+                data-letter-pages='@json($material["letter_pages"] ?? [])'
                 hidden></div>
             <div class="material-chunk-sentinel"
                 data-material-tab="{{ $material['type'] }}"

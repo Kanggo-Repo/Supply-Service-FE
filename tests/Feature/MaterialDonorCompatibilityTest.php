@@ -277,4 +277,41 @@ class MaterialDonorCompatibilityTest extends TestCase
         Http::assertSent(fn (ClientRequest $request) => $request->method() === 'POST'
             && $request->url() === 'http://supply-be.test/api/v1/materials/brick/12/history/200/restore');
     }
+
+    public function test_donor_store_normalizes_grouped_integer_price_payload_before_forwarding(): void
+    {
+        $user = User::factory()->create([
+            'permission_snapshot' => ['materials.create'],
+            'auth_provider' => 'monolith',
+            'auth_subject' => 'monolith:44',
+        ]);
+
+        Http::fake([
+            'http://supply-be.test/api/v1/materials/cement' => Http::response([
+                'message' => 'Material created successfully',
+                'data' => [
+                    'id' => 88,
+                    'family' => 'cement',
+                    'brand' => 'Semen Baru',
+                    'package_price' => 35000,
+                ],
+            ], 201),
+        ]);
+
+        $response = $this->actingAs($user)->postJson('/cements', [
+            'brand' => 'Semen Baru',
+            'type' => 'Mortar',
+            'package_price' => '35.000',
+            'package_weight_net' => '40,5',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('success', true);
+
+        Http::assertSent(function (ClientRequest $request) {
+            return $request->url() === 'http://supply-be.test/api/v1/materials/cement'
+                && data_get($request->data(), 'package_price') === 35000.0
+                && data_get($request->data(), 'package_weight_net') === 40.5;
+        });
+    }
 }

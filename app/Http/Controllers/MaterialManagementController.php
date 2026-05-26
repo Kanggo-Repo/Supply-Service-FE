@@ -26,7 +26,10 @@ class MaterialManagementController extends Controller
     public function index(Request $request): View
     {
         $allSettings = $this->getDisplayMaterialSettings();
-        $countSummary = $this->getDisplayMaterialCounts($request);
+        $materialSummary = $this->getDisplayMaterialSummary($request);
+        $countSummary = (array) ($materialSummary['counts'] ?? []);
+        $letterSummary = (array) ($materialSummary['letters'] ?? []);
+        $letterPageSummary = (array) ($materialSummary['letter_pages'] ?? []);
         $materials = [];
         $grandTotal = array_sum($countSummary);
         $activeTab = $this->normalizeDisplayMaterialType((string) $request->query('tab', ''));
@@ -50,7 +53,8 @@ class MaterialManagementController extends Controller
                     'data' => $this->hydrateMaterialCollection($type, (array) ($payload['data'] ?? [])),
                     'count' => count((array) ($payload['data'] ?? [])),
                     'db_count' => $dbCount,
-                    'active_letters' => $isLoaded ? $this->getDisplayActiveLetters((array) ($payload['data'] ?? [])) : [],
+                    'active_letters' => (array) ($letterSummary[$type] ?? ($isLoaded ? $this->getDisplayActiveLetters((array) ($payload['data'] ?? [])) : [])),
+                    'letter_pages' => (array) ($letterPageSummary[$type] ?? []),
                     'pagination' => $this->extractPagination($payload),
                     'is_loaded' => $isLoaded,
                 ];
@@ -75,6 +79,9 @@ class MaterialManagementController extends Controller
         abort_unless($this->isSupportedDisplayMaterialType($displayType), 404);
 
         $payload = $this->getDisplayMaterialPayload($displayType, $request);
+        $materialSummary = $this->getDisplayMaterialSummary($request);
+        $letterSummary = (array) ($materialSummary['letters'] ?? []);
+        $letterPageSummary = (array) ($materialSummary['letter_pages'] ?? []);
 
         $material = [
             'type' => $displayType,
@@ -82,7 +89,8 @@ class MaterialManagementController extends Controller
             'data' => $this->hydrateMaterialCollection($displayType, (array) ($payload['data'] ?? [])),
             'count' => count((array) ($payload['data'] ?? [])),
             'db_count' => (int) ($payload['total'] ?? 0),
-            'active_letters' => $this->getDisplayActiveLetters((array) ($payload['data'] ?? [])),
+            'active_letters' => (array) ($letterSummary[$displayType] ?? $this->getDisplayActiveLetters((array) ($payload['data'] ?? []))),
+            'letter_pages' => (array) ($letterPageSummary[$displayType] ?? []),
             'pagination' => $this->extractPagination($payload),
             'is_loaded' => true,
         ];
@@ -281,25 +289,47 @@ class MaterialManagementController extends Controller
     /**
      * @return array<string, int>
      */
-    private function getDisplayMaterialCounts(Request $request): array
+    private function getDisplayMaterialSummary(Request $request): array
     {
         try {
             $summaryPayload = $this->supplyServiceClient->materialSummary($request->user());
             $summary = (array) ($summaryPayload['data']['display_families'] ?? []);
+            $letters = collect((array) ($summaryPayload['data']['display_letters'] ?? []))
+                ->map(fn (mixed $value): array => is_array($value) ? array_values($value) : [])
+                ->all();
+            $letterPages = collect((array) ($summaryPayload['data']['display_letter_pages'] ?? []))
+                ->map(fn (mixed $value): array => is_array($value) ? $value : [])
+                ->all();
 
             if ($summary !== []) {
-                return collect($this->displayMaterialFamilies())
-                    ->keys()
-                    ->mapWithKeys(fn (string $type): array => [
-                        $type => (int) ($summary[$type] ?? 0),
-                    ])
-                    ->all();
+                return [
+                    'counts' => collect($this->displayMaterialFamilies())
+                        ->keys()
+                        ->mapWithKeys(fn (string $type): array => [
+                            $type => (int) ($summary[$type] ?? 0),
+                        ])
+                        ->all(),
+                    'letters' => collect($this->displayMaterialFamilies())
+                        ->keys()
+                        ->mapWithKeys(fn (string $type): array => [
+                            $type => array_values(array_filter((array) ($letters[$type] ?? []), fn (mixed $letter): bool => is_string($letter) && $letter !== '')),
+                        ])
+                        ->all(),
+                    'letter_pages' => collect($this->displayMaterialFamilies())
+                        ->keys()
+                        ->mapWithKeys(fn (string $type): array => [
+                            $type => array_filter((array) ($letterPages[$type] ?? []), fn (mixed $page, mixed $letter): bool => is_string($letter) && $letter !== '' && is_numeric($page), ARRAY_FILTER_USE_BOTH),
+                        ])
+                        ->all(),
+                ];
             }
         } catch (Throwable $exception) {
             report($exception);
         }
 
         $counts = [];
+        $letters = [];
+        $letterPages = [];
 
         foreach ($this->displaySourceFamilies() as $displayType => $families) {
             $counts[$displayType] = collect($families)
@@ -316,9 +346,44 @@ class MaterialManagementController extends Controller
 
                     return (int) ($payload['total'] ?? 0);
                 });
+
+            $letters[$displayType] = collect($families)
+                ->flatMap(function (string $family) use ($request): array {
+                    try {
+                        $payload = $this->supplyServiceClient->materialFilterMetadata($family, ['brand'], $request->user());
+                    } catch (Throwable $exception) {
+                        report($exception);
+
+                        return [];
+                    }
+
+                    return (array) data_get($payload, 'data.fields.brand', []);
+                })
+                ->map(function (mixed $value): string {
+                    $brand = trim((string) $value);
+                    $firstChar = strtoupper(substr($brand, 0, 1));
+
+                    return preg_match('/^[A-Z]$/', $firstChar) === 1 ? $firstChar : '';
+                })
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+
+            $letterPages[$displayType] = collect($letters[$displayType])
+                ->values()
+                ->mapWithKeys(function (string $letter, int $index): array {
+                    return [$letter => (int) floor($index / self::MATERIAL_TAB_CHUNK_SIZE) + 1];
+                })
+                ->all();
         }
 
-        return $counts;
+        return [
+            'counts' => $counts,
+            'letters' => $letters,
+            'letter_pages' => $letterPages,
+        ];
     }
 
     /**
@@ -396,6 +461,9 @@ class MaterialManagementController extends Controller
                 'has_missing_map_coordinates',
                 'map_warning_label',
                 'map_warning_reason',
+                'map_warning_action_context',
+                'map_warning_store_id',
+                'map_warning_store_location_id',
                 'map_warning_action_url',
                 'map_warning_action_mode',
             ])
@@ -403,7 +471,7 @@ class MaterialManagementController extends Controller
             ->mapWithKeys(fn (string $field): array => [$field => null])
             ->all();
 
-        return (object) array_replace($defaultFields, $item, [
+        $material = (object) array_replace($defaultFields, $item, [
             'id' => (int) ($item['id'] ?? 0),
             'label' => $label,
             'material_kind' => $item['material_kind'] ?? $type,
@@ -413,6 +481,39 @@ class MaterialManagementController extends Controller
             'brand' => (string) ($item['brand'] ?? ''),
             $nameField => $item[$nameField] ?? $label,
         ]);
+
+        $this->applyMapWarningActionMetadata($material);
+
+        return $material;
+    }
+
+    private function applyMapWarningActionMetadata(object $material): void
+    {
+        if (! ($material->has_missing_map_coordinates ?? false)) {
+            return;
+        }
+
+        $actionContext = trim((string) ($material->map_warning_action_context ?? ''));
+        $storeName = trim((string) ($material->store ?? ''));
+        $storeId = (int) ($material->map_warning_store_id ?? 0);
+        $storeLocationId = (int) ($material->map_warning_store_location_id ?? 0);
+
+        if ($actionContext === 'store-search' && $storeName !== '') {
+            $material->map_warning_action_url = route('stores.index', ['search' => $storeName]);
+            $material->map_warning_action_mode = 'page';
+
+            return;
+        }
+
+        if ($actionContext === 'store-location-edit' && $storeId > 0 && $storeLocationId > 0) {
+            $material->map_warning_action_url = route('store-locations.edit', [
+                'store' => $storeId,
+                'location' => $storeLocationId,
+                '_redirect_url' => route('materials.index'),
+                '_redirect_to_materials' => 1,
+            ]);
+            $material->map_warning_action_mode = 'modal';
+        }
     }
 
     /**
@@ -509,10 +610,54 @@ class MaterialManagementController extends Controller
     private function castNumericIfNeeded(array $fieldDefinitions, string $field, mixed $value): mixed
     {
         $type = data_get($fieldDefinitions, "{$field}.type");
-        if (! is_numeric($value) || ! in_array($type, ['number', 'decimal'], true)) {
+        if (! in_array($type, ['number', 'decimal'], true)) {
             return $value;
         }
 
-        return $type === 'number' ? (int) $value : (float) $value;
+        $normalized = $this->normalizeNumericInput($value);
+        if (! is_numeric($normalized)) {
+            return $value;
+        }
+
+        return $type === 'number' ? (int) $normalized : (float) $normalized;
+    }
+
+    private function normalizeNumericInput(mixed $value): mixed
+    {
+        if (! is_string($value)) {
+            return $value;
+        }
+
+        $normalized = trim($value);
+        if ($normalized === '') {
+            return $normalized;
+        }
+
+        $normalized = preg_replace('/[\s\x{00A0}]+/u', '', $normalized) ?? $normalized;
+
+        $hasComma = str_contains($normalized, ',');
+        $hasDot = str_contains($normalized, '.');
+
+        if ($hasComma && $hasDot) {
+            if (strrpos($normalized, ',') > strrpos($normalized, '.')) {
+                $normalized = str_replace('.', '', $normalized);
+                $normalized = str_replace(',', '.', $normalized);
+            } else {
+                $normalized = str_replace(',', '', $normalized);
+            }
+        } elseif ($hasComma) {
+            if (preg_match('/^-?\d{1,3}(,\d{3})+$/', $normalized) === 1) {
+                $normalized = str_replace(',', '', $normalized);
+            } else {
+                $normalized = str_replace(',', '.', $normalized);
+            }
+        } elseif ($hasDot) {
+            if (! str_starts_with($normalized, '0.') && ! str_starts_with($normalized, '-0.')
+                && preg_match('/^-?\d{1,3}(\.\d{3})+$/', $normalized) === 1) {
+                $normalized = str_replace('.', '', $normalized);
+            }
+        }
+
+        return $normalized;
     }
 }

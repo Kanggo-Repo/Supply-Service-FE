@@ -3,11 +3,14 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Supply\SupplyServiceClient;
+use App\Support\Auth\SupplyPermissionGate;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use Throwable;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -63,8 +66,33 @@ class AppServiceProvider extends ServiceProvider
         });
 
         View::composer('layouts.app', function ($view): void {
+            $user = request()->user();
+            $sidebarStoresMissingMapCount = 0;
+
+            if ($user instanceof User) {
+                /** @var SupplyPermissionGate $permissionGate */
+                $permissionGate = app(SupplyPermissionGate::class);
+
+                if ($permissionGate->allowsAny($user, [
+                    'stores.view',
+                    'stores.create',
+                    'stores.update',
+                    'stores.delete',
+                    'stores.manage',
+                ])) {
+                    try {
+                        /** @var SupplyServiceClient $supplyServiceClient */
+                        $supplyServiceClient = app(SupplyServiceClient::class);
+                        $payload = $supplyServiceClient->storeSidebarSummary($user);
+                        $sidebarStoresMissingMapCount = max(0, (int) data_get($payload, 'data.stores_missing_map_count', 0));
+                    } catch (Throwable $exception) {
+                        report($exception);
+                    }
+                }
+            }
+
             $view->with([
-                'sidebarStoresMissingMapCount' => 0,
+                'sidebarStoresMissingMapCount' => $sidebarStoresMissingMapCount,
                 'sidebarProjectDraftCount' => 0,
             ]);
         });

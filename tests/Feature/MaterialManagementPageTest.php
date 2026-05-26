@@ -55,6 +55,17 @@ class MaterialManagementPageTest extends TestCase
                         'paku_tembak' => 0,
                         'paku' => 0,
                     ],
+                    'display_letters' => [
+                        'brick' => ['A'],
+                        'cement' => [],
+                        'sand' => [],
+                        'cat' => [],
+                        'ceramic' => [],
+                        'steel' => [],
+                        'kasa_gypsum' => [],
+                        'paku_tembak' => [],
+                        'paku' => [],
+                    ],
                     'grand_total' => 1,
                 ],
             ], 200),
@@ -111,6 +122,104 @@ class MaterialManagementPageTest extends TestCase
                 && (int) ($query['page'] ?? 0) === 1
                 && (int) ($query['perPage'] ?? 0) === 50;
         });
+    }
+
+    public function test_materials_index_renders_full_letter_navigation_from_summary_even_when_chunk_data_is_partial(): void
+    {
+        $user = User::factory()->create([
+            'permission_snapshot' => ['materials.view'],
+        ]);
+
+        Http::fake([
+            'http://supply-be.test/api/v1/materials/summary' => Http::response([
+                'data' => [
+                    'families' => [
+                        'brick' => 60,
+                        'cement' => 0,
+                        'sand' => 0,
+                        'cat' => 0,
+                        'ceramic' => 0,
+                        'nat' => 0,
+                        'steel' => 0,
+                        'kasa_gypsum' => 0,
+                        'paku_tembak' => 0,
+                        'paku' => 0,
+                    ],
+                    'display_families' => [
+                        'brick' => 60,
+                        'cement' => 0,
+                        'sand' => 0,
+                        'cat' => 0,
+                        'ceramic' => 0,
+                        'steel' => 0,
+                        'kasa_gypsum' => 0,
+                        'paku_tembak' => 0,
+                        'paku' => 0,
+                    ],
+                    'display_letters' => [
+                        'brick' => ['A', 'C', 'S'],
+                        'cement' => [],
+                        'sand' => [],
+                        'cat' => [],
+                        'ceramic' => [],
+                        'steel' => [],
+                        'kasa_gypsum' => [],
+                        'paku_tembak' => [],
+                        'paku' => [],
+                    ],
+                    'display_letter_pages' => [
+                        'brick' => ['A' => 1, 'C' => 1, 'S' => 2],
+                        'cement' => [],
+                        'sand' => [],
+                        'cat' => [],
+                        'ceramic' => [],
+                        'steel' => [],
+                        'kasa_gypsum' => [],
+                        'paku_tembak' => [],
+                        'paku' => [],
+                    ],
+                    'grand_total' => 60,
+                ],
+            ], 200),
+            'http://supply-be.test/api/v1/materials/brick*' => Http::response([
+                'data' => [
+                    [
+                        'id' => 1,
+                        'family' => 'brick',
+                        'label' => 'Alpha Brick',
+                        'brand' => 'Alpha Brick',
+                        'type' => 'Roster',
+                    ],
+                ],
+                'current_page' => 1,
+                'per_page' => 50,
+                'total' => 60,
+                'last_page' => 2,
+            ], 200),
+            'http://supply-be.test/api/v1/units/grouped' => Http::response([
+                'success' => true,
+                'data' => [
+                    'brick' => [],
+                    'cement' => [],
+                    'nat' => [],
+                    'sand' => [],
+                    'cat' => [],
+                    'ceramic' => [],
+                    'steel' => [],
+                    'kasa_gypsum' => [],
+                    'paku_tembak' => [],
+                    'paku' => [],
+                ],
+            ], 200),
+        ]);
+
+        $response = $this->actingAs($user)->get('/materials?tab=brick');
+
+        $response->assertOk();
+        $response->assertSee('#brick-letter-A', false);
+        $response->assertSee('#brick-letter-C', false);
+        $response->assertSee('#brick-letter-S', false);
+        $response->assertSee('data-letter-pages=', false);
     }
 
     public function test_material_tab_endpoint_forwards_chunk_page_to_supply_be(): void
@@ -334,6 +443,95 @@ class MaterialManagementPageTest extends TestCase
         $response->assertSee('Tidak ada hasil pencarian di tab ini.');
     }
 
+    public function test_materials_index_shows_store_map_warning_and_sidebar_badge_like_monolith(): void
+    {
+        $user = User::factory()->create([
+            'permission_snapshot' => ['materials.view', 'stores.view'],
+        ]);
+
+        Http::fake([
+            'http://supply-be.test/api/v1/stores/sidebar-summary' => Http::response([
+                'data' => [
+                    'stores_missing_map_count' => 3,
+                ],
+            ], 200),
+            'http://supply-be.test/api/v1/materials/summary' => Http::response([
+                'data' => [
+                    'families' => [
+                        'brick' => 1,
+                        'cement' => 0,
+                        'sand' => 0,
+                        'cat' => 0,
+                        'ceramic' => 0,
+                        'nat' => 0,
+                        'steel' => 0,
+                        'kasa_gypsum' => 0,
+                        'paku_tembak' => 0,
+                        'paku' => 0,
+                    ],
+                    'display_families' => [
+                        'brick' => 1,
+                        'cement' => 0,
+                        'sand' => 0,
+                        'cat' => 0,
+                        'ceramic' => 0,
+                        'steel' => 0,
+                        'kasa_gypsum' => 0,
+                        'paku_tembak' => 0,
+                        'paku' => 0,
+                    ],
+                    'grand_total' => 1,
+                ],
+            ], 200),
+            'http://supply-be.test/api/v1/materials/brick*' => Http::response([
+                'data' => [
+                    [
+                        'id' => 1,
+                        'family' => 'brick',
+                        'label' => 'Brick Alpha Roster',
+                        'brand' => 'Alpha Brick',
+                        'type' => 'Roster',
+                        'store' => 'TB Alpha',
+                        'address' => 'Jl. Mawar 1',
+                        'has_missing_map_coordinates' => true,
+                        'map_warning_reason' => 'Koordinat Google Maps toko ini belum diisi.',
+                        'map_warning_action_context' => 'store-location-edit',
+                        'map_warning_store_id' => 7,
+                        'map_warning_store_location_id' => 71,
+                    ],
+                ],
+                'current_page' => 1,
+                'per_page' => 50,
+                'total' => 1,
+                'last_page' => 1,
+            ], 200),
+            'http://supply-be.test/api/v1/units/grouped' => Http::response([
+                'success' => true,
+                'data' => [
+                    'brick' => [],
+                    'cement' => [],
+                    'nat' => [],
+                    'sand' => [],
+                    'cat' => [],
+                    'ceramic' => [],
+                    'steel' => [],
+                    'kasa_gypsum' => [],
+                    'paku_tembak' => [],
+                    'paku' => [],
+                ],
+            ], 200),
+        ]);
+
+        $response = $this->actingAs($user)->get('/materials?tab=brick');
+
+        $response->assertOk();
+        $response->assertSee('title="3 toko belum memiliki koordinat map"', false);
+        $response->assertSee('Koordinat Google Maps toko ini belum diisi.');
+        $response->assertSee('/stores/7/locations/71/edit?_redirect_url=', false);
+        $response->assertSee('_redirect_to_materials=1', false);
+        $response->assertSee('global-open-modal');
+    }
+
     public function test_material_create_forwards_payload_to_supply_be_and_redirects_back_to_family_tab(): void
     {
         $user = User::factory()->create([
@@ -379,6 +577,51 @@ class MaterialManagementPageTest extends TestCase
                 && data_get($request->data(), 'type') === 'Tempel'
                 && data_get($request->data(), 'price_per_piece') === 1500.0
                 && $request->hasHeader('X-Actor-Auth-Subject', 'monolith:99');
+        });
+    }
+
+    public function test_material_create_normalizes_grouped_integer_and_decimal_payloads(): void
+    {
+        $user = User::factory()->create([
+            'name' => 'Supply Writer',
+            'email' => 'writer@example.com',
+            'auth_provider' => 'monolith',
+            'auth_subject' => 'monolith:99',
+            'role_snapshot' => ['supply_admin'],
+            'permission_snapshot' => ['materials.create'],
+        ]);
+
+        Http::fake([
+            'http://supply-be.test/api/v1/materials/brick' => Http::response([
+                'message' => 'Material created successfully',
+                'data' => [
+                    'id' => 56,
+                    'family' => 'brick',
+                    'label' => 'Brick Numeric Tempel',
+                    'brand' => 'Brick Numeric',
+                    'type' => 'Tempel',
+                ],
+            ], 201),
+        ]);
+
+        $response = $this->actingAs($user)->post('/materials', [
+            'family' => 'brick',
+            'brand' => 'Brick Numeric',
+            'type' => 'Tempel',
+            'form' => 'Persegi',
+            'dimension_length' => '20,5',
+            'dimension_width' => '10',
+            'dimension_height' => '5',
+            'price_per_piece' => '35.000',
+        ]);
+
+        $response->assertRedirect('/materials?family=brick');
+        $response->assertSessionHas('success');
+
+        Http::assertSent(function (ClientRequest $request) {
+            return $request->url() === 'http://supply-be.test/api/v1/materials/brick'
+                && data_get($request->data(), 'price_per_piece') === 35000.0
+                && data_get($request->data(), 'dimension_length') === 20.5;
         });
     }
 

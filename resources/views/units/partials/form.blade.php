@@ -66,9 +66,6 @@
                             </div>
 
                             <div class="unit-type-selected" data-unit-type-selected></div>
-                            <div class="unit-type-footnote">
-                                <span>Pilih satu atau lebih material yang memakai satuan ini.</span>
-                            </div>
                             @error('material_types')
                                 <small class="unit-form-error">
                                     <i class="bi bi-exclamation-circle"></i> {{ $message }}

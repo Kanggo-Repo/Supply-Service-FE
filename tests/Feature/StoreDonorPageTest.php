@@ -31,6 +31,11 @@ class StoreDonorPageTest extends TestCase
         ]);
 
         Http::fake([
+            'http://supply-be.test/api/v1/stores/sidebar-summary' => Http::response([
+                'data' => [
+                    'stores_missing_map_count' => 1,
+                ],
+            ], 200),
             'http://supply-be.test/api/v1/stores*' => Http::response([
                 'data' => [
                     [
@@ -80,6 +85,7 @@ class StoreDonorPageTest extends TestCase
         $response->assertSee('Tambah Toko');
         $response->assertSee('TB Alpha');
         $response->assertSee('Bandung');
+        $response->assertSee('title="1 toko belum memiliki koordinat map"', false);
         $response->assertSee('data-google-maps-api-key="test-google-key"', false);
 
         Http::assertSent(function (ClientRequest $request) {
@@ -103,6 +109,11 @@ class StoreDonorPageTest extends TestCase
         ]);
 
         Http::fake([
+            'http://supply-be.test/api/v1/stores/sidebar-summary' => Http::response([
+                'data' => [
+                    'stores_missing_map_count' => 0,
+                ],
+            ], 200),
             'http://supply-be.test/api/v1/stores*' => Http::response([
                 'data' => [
                     [
@@ -165,6 +176,11 @@ class StoreDonorPageTest extends TestCase
         ]);
 
         Http::fake([
+            'http://supply-be.test/api/v1/stores/sidebar-summary' => Http::response([
+                'data' => [
+                    'stores_missing_map_count' => 0,
+                ],
+            ], 200),
             'http://supply-be.test/api/v1/stores' => Http::response([
                 'message' => 'Store created successfully',
                 'data' => [
@@ -226,6 +242,11 @@ class StoreDonorPageTest extends TestCase
         ]);
 
         Http::fake([
+            'http://supply-be.test/api/v1/stores/sidebar-summary' => Http::response([
+                'data' => [
+                    'stores_missing_map_count' => 0,
+                ],
+            ], 200),
             'http://supply-be.test/api/v1/stores/1' => Http::response([
                 'data' => [
                     'id' => 1,
@@ -278,6 +299,11 @@ class StoreDonorPageTest extends TestCase
         ]);
 
         Http::fake([
+            'http://supply-be.test/api/v1/stores/sidebar-summary' => Http::response([
+                'data' => [
+                    'stores_missing_map_count' => 0,
+                ],
+            ], 200),
             'http://supply-be.test/api/v1/stores/9' => function (ClientRequest $request) {
                 if ($request->method() === 'GET') {
                     return Http::response([

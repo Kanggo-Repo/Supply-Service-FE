@@ -396,7 +396,6 @@
 }
 
 #floatingModal .floating-modal-body {
-    padding: 28px;
     overflow-y: auto;
     flex: 1;
 }
