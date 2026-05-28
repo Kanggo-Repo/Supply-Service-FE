@@ -11,7 +11,7 @@ use App\Http\Controllers\StoreSearchRadiusSettingController;
 use App\Http\Controllers\UnitManagementController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/login', [MonolithAuthController::class, 'login'])->name('login');
+Route::get('/login', [MonolithAuthController::class, 'redirectToMonolith'])->name('login');
 Route::get('/auth/redirect', [MonolithAuthController::class, 'redirectToMonolith'])->name('auth.redirect');
 Route::get('/auth/consume', [MonolithAuthController::class, 'consume'])->name('auth.consume');
 Route::post('/logout', [MonolithAuthController::class, 'logout'])->name('logout');

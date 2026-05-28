@@ -38,12 +38,19 @@
         }
     @endphp
     @php
+        $platformFeBaseUrl = rtrim((string) config('services.platform_fe.base_url', ''), '/');
+        $platformFeUrl = static fn (string $path = ''): string => $platformFeBaseUrl !== ''
+            ? $platformFeBaseUrl.'/'.ltrim($path, '/')
+            : '#';
+        $monolithBaseUrl = rtrim((string) config('services.monolith_app.base_url', ''), '/');
+        $monolithUrl = static fn (string $path = ''): string => $monolithBaseUrl !== ''
+            ? $monolithBaseUrl.'/'.ltrim($path, '/')
+            : '#';
         $calculationFeBaseUrl = rtrim((string) config('services.calculation_fe.base_url', ''), '/');
-        $calculationFeConsumePath = '/'.ltrim((string) config('services.calculation_fe.consume_path', '/auth/consume'), '/');
-        $calculationFeConsumeUrl = $calculationFeBaseUrl !== '' ? $calculationFeBaseUrl.$calculationFeConsumePath : '';
-        $calculationFeHandoffUrl = ($calculationFeConsumeUrl !== '' && (bool) config('services.auth_handoff.enabled', true))
-            ? route('auth.handoff.start', ['return_to' => $calculationFeConsumeUrl])
-            : '';
+        $calculationFeEntryUrl = $calculationFeBaseUrl !== '' ? $calculationFeBaseUrl : '';
+        $calculationFeUrl = static fn (string $path = ''): string => $calculationFeBaseUrl !== ''
+            ? $calculationFeBaseUrl.'/'.ltrim($path, '/')
+            : '#';
     @endphp
     <title>{{ $topbarTitle }}</title>
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
@@ -92,41 +99,6 @@
             margin-left: auto;
             display: inline-flex;
             align-items: center;
-        }
-
-        .topbar-app-shortcut {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            margin-right: 12px;
-            padding: 8px 12px;
-            border-radius: 14px;
-            border: 1px solid rgba(226, 232, 240, 0.95);
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%);
-            color: #172033;
-            text-decoration: none;
-            font-size: 0.78rem;
-            font-weight: 800;
-            letter-spacing: -0.01em;
-            box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
-            transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
-        }
-
-        .topbar-app-shortcut:hover,
-        .topbar-app-shortcut:focus {
-            color: #891313;
-            border-color: rgba(137, 19, 19, 0.22);
-            transform: translateY(-1px);
-            box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
-        }
-
-        .topbar-app-shortcut small {
-            display: block;
-            font-size: 0.63rem;
-            color: #64748b;
-            font-weight: 800;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
         }
 
         .topbar-account-dropdown .dropdown-toggle::after {
@@ -385,15 +357,6 @@
                     $activeUser = auth()->user();
                     $activeRole = $activeUser->getRoleNames()->first() ?? 'user';
                 @endphp
-                @if ($calculationFeHandoffUrl !== '')
-                    <a href="{{ $calculationFeHandoffUrl }}" class="topbar-app-shortcut">
-                        <i class="bi bi-box-arrow-up-right"></i>
-                        <span>
-                            Calculation FE
-                            <small>Open Service</small>
-                        </span>
-                    </a>
-                @endif
                 <div class="dropdown topbar-account-dropdown">
                     <button
                         class="btn topbar-account-trigger dropdown-toggle"
@@ -461,7 +424,7 @@
     <aside class="sidebar-nav" id="sidebarNav">
         <div class="nav">
             @if($canSeeDashboard)
-                <a href="{{ url('/') }}" class="{{ request()->routeIs('dashboard') || request()->routeIs('material-calculator.dashboard') ? 'active' : '' }}">
+                <a href="{{ $platformFeBaseUrl !== '' ? $platformFeUrl('/workspace') : url('/') }}" class="{{ request()->routeIs('dashboard') || request()->routeIs('material-calculator.dashboard') ? 'active' : '' }}">
                     <i class="bi bi-houses"></i></i> Dashboard
                 </a>
             @endif
@@ -709,7 +672,7 @@
                         <div class="nav-dropdown-content">
                             @canany(['work-items.view', 'work-items.create', 'work-items.update', 'work-items.delete', 'work-items.manage', 'projects.view', 'projects.manage'])
                                 <div class="dropdown-item-parent">
-                                    <a href="{{ route('work-items.index') }}"
+                                    <a href="{{ $monolithUrl('/work-items') }}"
                                     class="dropdown-item-trigger d-flex align-items-center text-decoration-none"
                                     role="button">
                                         Lihat Daftar Item Pekerjaan
@@ -719,16 +682,16 @@
 
                             @canany(['calculations.view', 'calculations.create', 'calculations.update', 'calculations.delete', 'calculations.export', 'calculations.manage', 'projects.view', 'projects.manage'])
                                 <div class="dropdown-item-parent">
-                                    <a href="{{ route('material-calculations.index') }}" id="calcNavLink"
+                                    <a href="{{ $calculationFeUrl('/material-calculations/create') }}" id="calcNavLink"
                                     class="dropdown-item-trigger d-flex align-items-center text-decoration-none"
                                     role="button">
                                         Hitung Item Pekerjaan Proyek
                                     </a>
                                 </div>
 
-                                @if ($calculationFeHandoffUrl !== '')
+                                @if ($calculationFeEntryUrl !== '')
                                     <div class="dropdown-item-parent">
-                                        <a href="{{ $calculationFeHandoffUrl }}"
+                                        <a href="{{ $calculationFeEntryUrl }}"
                                         class="dropdown-item-trigger d-flex align-items-center text-decoration-none"
                                         role="button">
                                             Hitung via Calculation FE
@@ -750,13 +713,13 @@
             @endcanany
 
             @can('workers.view')
-                <a href="{{ route('workers.index') }}" class="{{ request()->routeIs('workers.*') ? 'active' : '' }}">
+                <a href="{{ $monolithUrl('/workers') }}" class="{{ request()->routeIs('workers.*') ? 'active' : '' }}">
                     <i class="bi bi-people"></i> Tukang
                 </a>
             @endcan
 
             @can('skills.view')
-                <a href="{{ route('skills.index') }}" class="{{ request()->routeIs('skills.*') ? 'active' : '' }}">
+                <a href="{{ $monolithUrl('/skills') }}" class="{{ request()->routeIs('skills.*') ? 'active' : '' }}">
                     <i class="bi bi-tools"></i> Keahlian
                 </a>
             @endcan

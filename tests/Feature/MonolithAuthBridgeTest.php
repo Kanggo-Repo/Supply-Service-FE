@@ -32,13 +32,17 @@ class MonolithAuthBridgeTest extends TestCase
         $response->assertRedirect(route('auth.redirect'));
     }
 
-    public function test_login_page_uses_keycloak_copy(): void
+    public function test_login_route_redirects_directly_to_keycloak_authorize_endpoint(): void
     {
         $response = $this->get(route('login'));
 
-        $response->assertOk();
-        $response->assertSee('Portal Login Database Supply dan Jaringan Toko.');
-        $response->assertSee('Masuk dengan Keycloak');
+        $response->assertRedirect();
+
+        $redirectUrl = $response->headers->get('Location');
+
+        $this->assertStringContainsString('https://auth.example.test/realms/kanggo/protocol/openid-connect/auth', $redirectUrl);
+        $this->assertStringContainsString('client_id=supply-fe', $redirectUrl);
+        $this->assertStringContainsString('response_type=code', $redirectUrl);
     }
 
     public function test_auth_redirect_points_to_keycloak_authorize_endpoint(): void

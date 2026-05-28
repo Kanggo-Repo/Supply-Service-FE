@@ -12,6 +12,10 @@ class SupplyPermissionGate
             return false;
         }
 
+        if ($this->isBootstrapAdmin($user)) {
+            return true;
+        }
+
         $permissions = $this->permissions($user);
         if ($permissions === []) {
             return true;
@@ -27,6 +31,10 @@ class SupplyPermissionGate
     {
         if (! $user) {
             return false;
+        }
+
+        if ($this->isBootstrapAdmin($user)) {
+            return true;
         }
 
         $resolvedPermissions = $this->permissions($user);
@@ -81,5 +89,13 @@ class SupplyPermissionGate
             static fn (mixed $value): string => trim((string) $value),
             $roles,
         )));
+    }
+
+    private function isBootstrapAdmin(User $user): bool
+    {
+        $roles = $this->roles($user);
+
+        return in_array('super_admin', $roles, true)
+            || in_array('platform_operator', $roles, true);
     }
 }
