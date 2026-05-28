@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Middleware\EnsurePlatformAuthenticated;
+use App\Http\Middleware\EnsureServiceAccess;
+use App\Http\Middleware\EnsureSupplyPermission;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -12,8 +15,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'monolith.auth' => \App\Http\Middleware\EnsureMonolithAuthenticated::class,
-            'supply.permission' => \App\Http\Middleware\EnsureSupplyPermission::class,
+            'platform.auth' => EnsurePlatformAuthenticated::class,
+            'service.access' => EnsureServiceAccess::class,
+            'supply.permission' => EnsureSupplyPermission::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -14,69 +15,131 @@ class MonolithAuthBridgeTest extends TestCase
     {
         parent::setUp();
 
-        config()->set('services.monolith_auth.enabled', true);
-        config()->set('services.monolith_auth.base_url', 'https://staging-material.ekagalang.my.id');
-        config()->set('services.monolith_auth.handoff_start_path', '/auth/handoff/start');
-        config()->set('services.monolith_auth.handoff_redeem_path', '/api/internal/auth/handoffs/redeem');
-        config()->set('services.monolith_auth.handoff_logout_path', '/auth/handoff/logout');
-        config()->set('services.monolith_auth.verify_ssl', false);
+        config()->set([
+            'services.keycloak.base_url' => 'https://auth.example.test',
+            'services.keycloak.realm' => 'kanggo',
+            'services.keycloak.client_id' => 'supply-fe',
+            'services.platform_service.base_url' => 'http://127.0.0.1:8020',
+            'services.calculation_fe.base_url' => 'http://calcfe.lvh.me:8001',
+            'services.platform_fe.base_url' => 'http://platformfe.lvh.me:8021',
+        ]);
     }
 
-    public function test_guest_is_redirected_from_materials_route_to_monolith_bridge(): void
+    public function test_guest_is_redirected_from_materials_route_to_keycloak_entrypoint(): void
     {
         $response = $this->get('/materials');
 
         $response->assertRedirect(route('auth.redirect'));
     }
 
-    public function test_login_page_uses_supply_bridge_copy(): void
+    public function test_login_page_uses_keycloak_copy(): void
     {
         $response = $this->get(route('login'));
 
         $response->assertOk();
         $response->assertSee('Portal Login Database Supply dan Jaringan Toko.');
-        $response->assertSee('Masuk dengan Akun Monolith');
+        $response->assertSee('Masuk dengan Keycloak');
     }
 
-    public function test_auth_redirect_points_to_monolith_handoff_start_with_fe_consumer_url(): void
+    public function test_auth_redirect_points_to_keycloak_authorize_endpoint(): void
     {
         $response = $this->get(route('auth.redirect'));
 
-        $expected = 'https://staging-material.ekagalang.my.id/auth/handoff/start?'
-            .http_build_query(['return_to' => route('auth.consume')], '', '&', PHP_QUERY_RFC3986);
+        $response->assertRedirect();
 
-        $response->assertRedirect($expected);
+        $redirectUrl = $response->headers->get('Location');
+
+        $this->assertStringContainsString('https://auth.example.test/realms/kanggo/protocol/openid-connect/auth', $redirectUrl);
+        $this->assertStringContainsString('client_id=supply-fe', $redirectUrl);
+        $this->assertStringContainsString('response_type=code', $redirectUrl);
+        $this->assertTrue(session()->has('oidc_state'));
+        $this->assertTrue(session()->has('oidc_code_verifier'));
     }
 
-    public function test_consume_redeems_monolith_handoff_and_creates_local_session_shell_user(): void
+    public function test_consume_exchanges_oidc_code_and_creates_local_session_shell_user(): void
     {
         Http::fake([
-            'https://staging-material.ekagalang.my.id/api/internal/auth/handoffs/redeem' => Http::response([
-                'success' => true,
+            'https://auth.example.test/realms/kanggo/protocol/openid-connect/token' => Http::response([
+                'access_token' => 'access-token-123',
+                'refresh_token' => 'refresh-token-123',
+                'id_token' => 'id-token-123',
+                'expires_in' => 300,
+            ]),
+            'http://127.0.0.1:8020/api/v1/me' => Http::response([
                 'data' => [
-                    'user' => [
-                        'id' => 77,
-                        'name' => 'Supply Bridge User',
+                    'identity' => [
+                        'subject' => 'kc-user-1',
                         'email' => 'bridge@example.com',
-                        'roles' => ['supply_admin'],
-                        'permissions' => ['materials.view', 'stores.view', 'units.view'],
+                        'name' => 'Supply Bridge User',
                     ],
-                    'return_to' => route('auth.consume'),
+                    'roles' => ['supply_admin'],
+                    'permissions' => ['materials.view', 'stores.view', 'units.view'],
                 ],
-            ], 200),
+            ]),
+            'http://127.0.0.1:8020/api/v1/navigation' => Http::response([
+                'data' => [
+                    'preferred_app' => 'supply',
+                    'pending_access' => false,
+                    'allowed_services' => ['supply'],
+                    'blocked_services' => [],
+                    'pending_services' => ['platform', 'calculation'],
+                ],
+            ]),
         ]);
 
-        $response = $this->get('/auth/consume?handoff_token=test-token');
+        $response = $this->withSession([
+            'oidc_state' => 'expected-state',
+            'oidc_code_verifier' => 'verifier-123',
+        ])->get('/auth/consume?code=authorization-code&state=expected-state');
 
         $response->assertRedirect(route('materials.index'));
         $this->assertAuthenticated();
 
-        $user = \App\Models\User::query()->where('email', 'bridge@example.com')->firstOrFail();
+        $user = User::query()->where('email', 'bridge@example.com')->firstOrFail();
 
-        $this->assertSame('monolith', $user->auth_provider);
-        $this->assertSame('monolith:77', $user->auth_subject);
+        $this->assertSame('keycloak', $user->auth_provider);
+        $this->assertSame('keycloak:kc-user-1', $user->auth_subject);
         $this->assertSame(['supply_admin'], $user->role_snapshot);
         $this->assertSame(['materials.view', 'stores.view', 'units.view'], $user->permission_snapshot);
         $this->assertNotNull($user->last_login_at);
+        $this->assertSame(['supply'], session('platform_allowed_services'));
+    }
+
+    public function test_consume_redirects_to_calculation_service_when_user_has_no_supply_access(): void
+    {
+        Http::fake([
+            'https://auth.example.test/realms/kanggo/protocol/openid-connect/token' => Http::response([
+                'access_token' => 'access-token-123',
+                'refresh_token' => 'refresh-token-123',
+                'id_token' => 'id-token-123',
+                'expires_in' => 300,
+            ]),
+            'http://127.0.0.1:8020/api/v1/me' => Http::response([
+                'data' => [
+                    'identity' => [
+                        'subject' => 'kc-user-2',
+                        'email' => 'calc-only@example.com',
+                        'name' => 'Calc Only User',
+                    ],
+                    'roles' => ['calculation_operator'],
+                    'permissions' => [],
+                ],
+            ]),
+            'http://127.0.0.1:8020/api/v1/navigation' => Http::response([
+                'data' => [
+                    'preferred_app' => 'calculation',
+                    'pending_access' => false,
+                    'allowed_services' => ['calculation'],
+                    'blocked_services' => [],
+                    'pending_services' => ['platform', 'supply'],
+                ],
+            ]),
+        ]);
+
+        $this->withSession([
+            'oidc_state' => 'expected-state',
+            'oidc_code_verifier' => 'verifier-123',
+        ])->get('/auth/consume?code=authorization-code&state=expected-state')
+            ->assertRedirect('http://calcfe.lvh.me:8001');
     }
 }

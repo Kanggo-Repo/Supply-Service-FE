@@ -4,6 +4,7 @@ use App\Http\Controllers\MaterialDonorController;
 use App\Http\Controllers\MaterialManagementController;
 use App\Http\Controllers\MaterialRecycleBinDonorController;
 use App\Http\Controllers\MonolithAuthController;
+use App\Http\Controllers\ServiceAccessController;
 use App\Http\Controllers\StoreDonorController;
 use App\Http\Controllers\StoreLocationDonorController;
 use App\Http\Controllers\StoreSearchRadiusSettingController;
@@ -14,11 +15,14 @@ Route::get('/login', [MonolithAuthController::class, 'login'])->name('login');
 Route::get('/auth/redirect', [MonolithAuthController::class, 'redirectToMonolith'])->name('auth.redirect');
 Route::get('/auth/consume', [MonolithAuthController::class, 'consume'])->name('auth.consume');
 Route::post('/logout', [MonolithAuthController::class, 'logout'])->name('logout');
-Route::view('/profile', 'profile.show')->middleware('monolith.auth')->name('profile.show');
+Route::view('/profile', 'profile.show')->middleware(['platform.auth', 'service.access:supply'])->name('profile.show');
+Route::get('/access-pending', [ServiceAccessController::class, 'pending'])
+    ->middleware('platform.auth')
+    ->name('service.access.pending');
 
 Route::redirect('/', '/materials');
 
-Route::middleware('monolith.auth')->group(function () {
+Route::middleware(['platform.auth', 'service.access:supply'])->group(function () {
     Route::get('/materials/type-suggestions', [MaterialManagementController::class, 'typeSuggestions'])
         ->middleware('supply.permission:materials.view')
         ->name('materials.type-suggestions');

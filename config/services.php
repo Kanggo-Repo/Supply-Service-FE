@@ -42,22 +42,25 @@ return [
         'verify_ssl' => filter_var(env('SUPPLY_SERVICE_BE_VERIFY_SSL', true), FILTER_VALIDATE_BOOL),
     ],
 
+    'platform_service' => [
+        'base_url' => env('PLATFORM_SERVICE_BASE_URL', 'http://127.0.0.1:8020'),
+    ],
+
+    'platform_fe' => [
+        'base_url' => env('PLATFORM_FE_BASE_URL'),
+    ],
+
+    'keycloak' => [
+        'base_url' => env('KEYCLOAK_BASE_URL'),
+        'realm' => env('KEYCLOAK_REALM', 'kanggo'),
+        'client_id' => env('KEYCLOAK_CLIENT_ID', 'supply-fe'),
+        'verify_ssl' => filter_var(env('KEYCLOAK_VERIFY_SSL', true), FILTER_VALIDATE_BOOL),
+        'ca_bundle' => env('KEYCLOAK_CA_BUNDLE'),
+    ],
+
     'calculation_fe' => [
         'base_url' => env('CALCULATION_FE_BASE_URL'),
         'consume_path' => env('CALCULATION_FE_CONSUME_PATH', '/auth/consume'),
-    ],
-
-    'auth_handoff' => [
-        'enabled' => filter_var(env('AUTH_HANDOFF_ENABLED', false), FILTER_VALIDATE_BOOL),
-    ],
-
-    'monolith_auth' => [
-        'enabled' => filter_var(env('MONOLITH_AUTH_ENABLED', false), FILTER_VALIDATE_BOOL),
-        'base_url' => env('MONOLITH_AUTH_BASE_URL'),
-        'handoff_start_path' => env('MONOLITH_AUTH_HANDOFF_START_PATH', '/auth/handoff/start'),
-        'handoff_redeem_path' => env('MONOLITH_AUTH_HANDOFF_REDEEM_PATH', '/api/internal/auth/handoffs/redeem'),
-        'handoff_logout_path' => env('MONOLITH_AUTH_HANDOFF_LOGOUT_PATH', '/auth/handoff/logout'),
-        'verify_ssl' => filter_var(env('MONOLITH_AUTH_VERIFY_SSL', true), FILTER_VALIDATE_BOOL),
     ],
 
     'google' => [
