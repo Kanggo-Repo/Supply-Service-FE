@@ -736,10 +736,11 @@ class MaterialManagementPageTest extends TestCase
         });
     }
 
-    public function test_materials_index_shows_recycle_bin_button_when_permission_snapshot_is_empty(): void
+    public function test_materials_index_hides_restricted_sidebar_actions_for_limited_role(): void
     {
         $user = User::factory()->create([
-            'permission_snapshot' => [],
+            'role_snapshot' => ['purchasing'],
+            'permission_snapshot' => ['materials.view'],
         ]);
 
         Http::fake([
@@ -798,10 +799,14 @@ class MaterialManagementPageTest extends TestCase
         $response = $this->actingAs($user)->get('/materials?tab=brick');
 
         $response->assertOk();
-        $response->assertSee(route('materials.recycle-bin'), false);
-        $response->assertSee(route('stores.index'), false);
-        $response->assertSee(route('units.index'), false);
-        $response->assertSee(route('settings.store-search-radius.index'), false);
+        $response->assertSee('Database Material');
+        $response->assertDontSee(route('materials.recycle-bin'), false);
+        $response->assertDontSee(route('stores.index'), false);
+        $response->assertDontSee(route('units.index'), false);
+        $response->assertDontSee(route('settings.store-search-radius.index'), false);
+        $response->assertDontSee('http://calcfe.lvh.me:8001/work-items', false);
+        $response->assertDontSee('http://platformfe.lvh.me:8021/workers', false);
+        $response->assertDontSee('http://platformfe.lvh.me:8021/skills', false);
     }
 
     public function test_materials_index_keeps_modal_edit_action_and_inline_create_flow(): void

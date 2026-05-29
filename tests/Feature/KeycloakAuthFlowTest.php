@@ -144,6 +144,21 @@ class KeycloakAuthFlowTest extends TestCase
             'oidc_state' => 'expected-state',
             'oidc_code_verifier' => 'verifier-123',
         ])->get('/auth/consume?code=authorization-code&state=expected-state')
-            ->assertRedirect('http://calcfe.lvh.me:8001');
+            ->assertRedirect('http://calcfe.lvh.me:8001?access_notice=service-denied&requested_service=supply');
+    }
+
+    public function test_service_access_middleware_redirects_blocked_user_with_access_denied_notice(): void
+    {
+        $user = User::factory()->create([
+            'role_snapshot' => ['purchasing'],
+            'permission_snapshot' => ['dashboard.view'],
+        ]);
+
+        $this->actingAs($user)->withSession([
+            'platform_allowed_services' => ['platform'],
+            'platform_pending_access' => false,
+            'platform_preferred_app' => 'platform',
+        ])->get('/materials')
+            ->assertRedirect('http://platformfe.lvh.me:8021?access_notice=service-denied&requested_service=supply');
     }
 }

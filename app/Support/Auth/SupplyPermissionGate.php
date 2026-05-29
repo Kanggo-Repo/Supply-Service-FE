@@ -17,9 +17,6 @@ class SupplyPermissionGate
         }
 
         $permissions = $this->permissions($user);
-        if ($permissions === []) {
-            return true;
-        }
 
         return in_array($permission, $permissions, true);
     }
@@ -38,9 +35,6 @@ class SupplyPermissionGate
         }
 
         $resolvedPermissions = $this->permissions($user);
-        if ($resolvedPermissions === []) {
-            return true;
-        }
 
         foreach ($permissions as $permission) {
             if (in_array($permission, $resolvedPermissions, true)) {

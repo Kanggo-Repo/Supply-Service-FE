@@ -2489,6 +2489,26 @@
                 }
                 sessionStorage.removeItem('pendingToast');
             }
+
+            const url = new URL(window.location.href);
+            const accessNotice = url.searchParams.get('access_notice');
+            if (accessNotice === 'service-denied') {
+                const requestedService = url.searchParams.get('requested_service') || '';
+                const requestedServiceLabel = ({
+                    platform: 'Platform',
+                    supply: 'Supply',
+                    calculation: 'Calculation',
+                })[requestedService] || 'tujuan';
+
+                createToast(`Anda tidak memiliki akses ke service ${requestedServiceLabel}.`, 'error', {
+                    title: 'Akses Ditolak',
+                });
+
+                url.searchParams.delete('access_notice');
+                url.searchParams.delete('requested_service');
+                const nextQuery = url.searchParams.toString();
+                window.history.replaceState({}, document.title, `${url.pathname}${nextQuery ? `?${nextQuery}` : ''}${url.hash}`);
+            }
         })();
     </script>
 

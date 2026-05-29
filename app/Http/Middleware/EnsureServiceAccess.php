@@ -31,7 +31,7 @@ class EnsureServiceAccess
         $preferredUrl = $this->resolvePreferredServiceUrl((string) $request->session()->get('platform_preferred_app', ''));
 
         if ($preferredUrl !== null) {
-            return redirect()->away($preferredUrl);
+            return redirect()->away($this->appendAccessDeniedNotice($preferredUrl, $serviceCode));
         }
 
         abort(403, 'Akun Anda belum memiliki akses ke service ini.');
@@ -48,5 +48,15 @@ class EnsureServiceAccess
         $normalized = rtrim(trim($baseUrl), '/');
 
         return $normalized !== '' ? $normalized : null;
+    }
+
+    private function appendAccessDeniedNotice(string $preferredUrl, string $serviceCode): string
+    {
+        $separator = str_contains($preferredUrl, '?') ? '&' : '?';
+
+        return $preferredUrl.$separator.http_build_query([
+            'access_notice' => 'service-denied',
+            'requested_service' => $serviceCode,
+        ]);
     }
 }

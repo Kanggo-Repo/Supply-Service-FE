@@ -35,6 +35,10 @@ class AppServiceProvider extends ServiceProvider
                 return true;
             }
 
+            if ($user instanceof User && in_array('platform_operator', $user->role_snapshot ?? [], true)) {
+                return true;
+            }
+
             if ($user instanceof User && $user->hasPermission($ability)) {
                 return true;
             }

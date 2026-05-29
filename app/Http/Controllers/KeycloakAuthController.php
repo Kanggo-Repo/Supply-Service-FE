@@ -90,7 +90,7 @@ class KeycloakAuthController extends Controller
             $preferredUrl = $this->resolvePreferredServiceUrl((string) ($navigation['preferred_app'] ?? ''));
 
             if ($preferredUrl !== null) {
-                return redirect()->away($preferredUrl);
+                return redirect()->away($this->appendAccessDeniedNotice($preferredUrl, 'supply'));
             }
 
             return redirect()->route('service.access.pending');
@@ -193,6 +193,16 @@ class KeycloakAuthController extends Controller
         $normalized = rtrim(trim($baseUrl), '/');
 
         return $normalized !== '' ? $normalized : null;
+    }
+
+    private function appendAccessDeniedNotice(string $preferredUrl, string $serviceCode): string
+    {
+        $separator = str_contains($preferredUrl, '?') ? '&' : '?';
+
+        return $preferredUrl.$separator.http_build_query([
+            'access_notice' => 'service-denied',
+            'requested_service' => $serviceCode,
+        ]);
     }
 
     private function normalizeStringList(mixed $values): array
