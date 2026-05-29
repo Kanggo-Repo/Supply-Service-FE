@@ -79,16 +79,14 @@ Dokumen ini mencatat hasil bootstrap sampai `Wave 7` untuk `supply-service-fe`.
 ```env
 APP_URL=http://supplyfe.lvh.me:8009
 
-MONOLITH_AUTH_ENABLED=true
-MONOLITH_AUTH_BASE_URL=https://monolith.example.com
-MONOLITH_AUTH_HANDOFF_START_PATH=/auth/handoff/start
-MONOLITH_AUTH_HANDOFF_REDEEM_PATH=/api/internal/auth/handoffs/redeem
-MONOLITH_AUTH_HANDOFF_LOGOUT_PATH=/auth/handoff/logout
-MONOLITH_AUTH_VERIFY_SSL=true
+KEYCLOAK_BASE_URL=https://sso.example.com
+KEYCLOAK_REALM=kanggo
+KEYCLOAK_CLIENT_ID=supply-fe
+KEYCLOAK_VERIFY_SSL=true
 
-SUPPLY_SERVICE_BE_URL=http://127.0.0.1:8000
-SUPPLY_SERVICE_FE_CALLER_NAME=supply-fe
-SUPPLY_SERVICE_BE_TOKEN=change-me
+SUPPLY_SERVICE_BASE_URL=http://127.0.0.1:8008
+INTERNAL_CALLER_NAME=supply-fe
+SUPPLY_SERVICE_TOKEN=change-me
 SUPPLY_SERVICE_BE_VERIFY_SSL=true
 ```
 
@@ -162,7 +160,7 @@ Header actor yang saat ini diteruskan:
 
 ## Test yang menutup bootstrap ini
 
-- `tests/Feature/MonolithAuthBridgeTest.php`
+- `tests/Feature/KeycloakAuthFlowTest.php`
 - `tests/Feature/MaterialManagementPageTest.php`
 - `tests/Feature/MaterialDonorCompatibilityTest.php`
 - `tests/Feature/MaterialRecycleBinDonorPageTest.php`

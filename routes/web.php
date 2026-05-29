@@ -1,9 +1,9 @@
 <?php
 
+use App\Http\Controllers\KeycloakAuthController;
 use App\Http\Controllers\MaterialDonorController;
 use App\Http\Controllers\MaterialManagementController;
 use App\Http\Controllers\MaterialRecycleBinDonorController;
-use App\Http\Controllers\MonolithAuthController;
 use App\Http\Controllers\ServiceAccessController;
 use App\Http\Controllers\StoreDonorController;
 use App\Http\Controllers\StoreLocationDonorController;
@@ -11,10 +11,10 @@ use App\Http\Controllers\StoreSearchRadiusSettingController;
 use App\Http\Controllers\UnitManagementController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/login', [MonolithAuthController::class, 'redirectToMonolith'])->name('login');
-Route::get('/auth/redirect', [MonolithAuthController::class, 'redirectToMonolith'])->name('auth.redirect');
-Route::get('/auth/consume', [MonolithAuthController::class, 'consume'])->name('auth.consume');
-Route::post('/logout', [MonolithAuthController::class, 'logout'])->name('logout');
+Route::get('/login', [KeycloakAuthController::class, 'redirectToIdentityProvider'])->name('login');
+Route::get('/auth/redirect', [KeycloakAuthController::class, 'redirectToIdentityProvider'])->name('auth.redirect');
+Route::get('/auth/consume', [KeycloakAuthController::class, 'consume'])->name('auth.consume');
+Route::post('/logout', [KeycloakAuthController::class, 'logout'])->name('logout');
 Route::view('/profile', 'profile.show')->middleware(['platform.auth', 'service.access:supply'])->name('profile.show');
 Route::get('/access-pending', [ServiceAccessController::class, 'pending'])
     ->middleware('platform.auth')

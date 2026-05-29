@@ -36,10 +36,11 @@ return [
     ],
 
     'supply_service' => [
-        'base_url' => env('SUPPLY_SERVICE_BE_URL', 'http://127.0.0.1:8000'),
-        'service_name' => env('SUPPLY_SERVICE_FE_CALLER_NAME', 'supply-fe'),
-        'token' => env('SUPPLY_SERVICE_BE_TOKEN'),
-        'verify_ssl' => filter_var(env('SUPPLY_SERVICE_BE_VERIFY_SSL', true), FILTER_VALIDATE_BOOL),
+        'base_url' => env('SUPPLY_SERVICE_BASE_URL', 'http://127.0.0.1:8000'),
+        'service_name' => env('INTERNAL_CALLER_NAME', 'supply-fe'),
+        'token' => env('INTERNAL_SERVICE_TOKEN', env('SUPPLY_SERVICE_TOKEN')),
+        'verify_ssl' => filter_var(env('SUPPLY_SERVICE_VERIFY_SSL', true), FILTER_VALIDATE_BOOL),
+        'ca_bundle' => env('SUPPLY_SERVICE_CA_BUNDLE'),
     ],
 
     'platform_service' => [
@@ -48,10 +49,6 @@ return [
 
     'platform_fe' => [
         'base_url' => env('PLATFORM_FE_BASE_URL'),
-    ],
-
-    'monolith_app' => [
-        'base_url' => env('MONOLITH_BASE_URL', env('MONOLITH_AUTH_BASE_URL')),
     ],
 
     'keycloak' => [
@@ -69,6 +66,8 @@ return [
 
     'calculation_service' => [
         'base_url' => env('CALCULATION_SERVICE_BASE_URL', 'http://127.0.0.1:8000'),
+        'verify_ssl' => filter_var(env('CALCULATION_SERVICE_VERIFY_SSL', false), FILTER_VALIDATE_BOOL),
+        'ca_bundle' => env('CALCULATION_SERVICE_CA_BUNDLE'),
     ],
 
     'google' => [

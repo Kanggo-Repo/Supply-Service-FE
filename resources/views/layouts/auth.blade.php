@@ -106,7 +106,7 @@
         </section>
 
         <section class="auth-panel">
-            <div class="kicker">Monolith Bridge</div>
+            <div class="kicker">SSO Access</div>
             <h2 class="panel-title">@yield('auth_card_title', 'Masuk')</h2>
             <p>@yield('auth_card_copy')</p>
 

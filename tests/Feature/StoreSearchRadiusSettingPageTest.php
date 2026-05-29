@@ -16,7 +16,6 @@ class StoreSearchRadiusSettingPageTest extends TestCase
     {
         parent::setUp();
 
-        config()->set('services.monolith_auth.enabled', true);
         config()->set('services.supply_service.base_url', 'http://supply-be.test');
         config()->set('services.supply_service.service_name', 'supply-fe');
         config()->set('services.supply_service.token', 'local-supply-token');

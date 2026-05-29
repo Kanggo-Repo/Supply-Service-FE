@@ -7,7 +7,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
-class MonolithAuthBridgeTest extends TestCase
+class KeycloakAuthFlowTest extends TestCase
 {
     use RefreshDatabase;
 

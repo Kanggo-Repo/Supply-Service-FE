@@ -13,7 +13,7 @@ use Illuminate\Support\Str;
 use Illuminate\View\View;
 use RuntimeException;
 
-class MonolithAuthController extends Controller
+class KeycloakAuthController extends Controller
 {
     public function __construct(
         private readonly KeycloakOidcService $keycloakOidcService,
@@ -29,7 +29,7 @@ class MonolithAuthController extends Controller
         return view('auth.login');
     }
 
-    public function redirectToMonolith(Request $request): RedirectResponse
+    public function redirectToIdentityProvider(Request $request): RedirectResponse
     {
         $state = bin2hex(random_bytes(20));
         $codeVerifier = bin2hex(random_bytes(32));
