@@ -10,6 +10,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Throwable;
 
@@ -35,36 +36,63 @@ class MaterialDonorController extends Controller
         private readonly SupplyServiceClient $supplyServiceClient,
     ) {}
 
-    public function create(Request $request): View
+    public function create(Request $request): View|Response
     {
         $definition = $this->resourceDefinition((string) $request->route('resource'));
 
-        return view($definition['view'].'.create', [
+        $view = view($definition['view'].'.create', [
             'units' => $this->unitsForFamily($definition['family'], $request),
         ]);
+
+        if ($request->boolean('embedded')) {
+            return response()->view('layouts.embedded-material-modal', [
+                'title' => 'Tambah '.SupplyMaterialCatalog::family($definition['family'])['label'],
+                'content' => $view->render(),
+            ]);
+        }
+
+        return $view;
     }
 
-    public function show(Request $request, int $id): View
+    public function show(Request $request, int $id): View|Response
     {
         $resource = (string) $request->route('resource');
         $definition = $this->resourceDefinition($resource);
         $material = $this->buildDetailMaterial($resource, $definition['family'], $id, $request);
 
-        return view($definition['view'].'.show', [
+        $view = view($definition['view'].'.show', [
             $definition['variable'] => $material,
         ]);
+
+        if ($request->boolean('embedded')) {
+            return response()->view('layouts.embedded-material-modal', [
+                'title' => 'Detail '.SupplyMaterialCatalog::family($definition['family'])['label'],
+                'content' => $view->render(),
+            ]);
+        }
+
+        return $view;
     }
 
-    public function edit(Request $request, int $id): View
+    public function edit(Request $request, int $id): View|Response
     {
         $resource = (string) $request->route('resource');
         $definition = $this->resourceDefinition($resource);
         $material = $this->buildDetailMaterial($resource, $definition['family'], $id, $request);
 
-        return view($definition['view'].'.edit', [
+        $view = view($definition['view'].'.edit', [
             $definition['variable'] => $material,
             'units' => $this->unitsForFamily($definition['family'], $request),
         ]);
+
+        if ($request->boolean('embedded')) {
+            return response()->view('layouts.embedded-material-modal', [
+                'title' => 'Edit '.SupplyMaterialCatalog::family($definition['family'])['label'],
+                'content' => $view->render(),
+            ]);
+        }
+
+        return $view;
     }
 
     public function store(Request $request): JsonResponse|RedirectResponse
