@@ -1749,6 +1749,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const STORAGE_KEY = 'materials_index_filter_preferences';
     const ACTIVE_TAB_STORAGE_KEY = 'materialsIndexActiveTab';
     const LETTER_HISTORY_STORAGE_KEY = 'materialsIndexLetterHistory';
+    const SHARED_LAST_URL_COOKIE = 'supply_last_materials_url';
+    const urlParams = new URLSearchParams(window.location.search);
     let savedFilter = null;
     try {
         const stored = localStorage.getItem(STORAGE_KEY);
@@ -1771,6 +1773,36 @@ document.addEventListener('DOMContentLoaded', function() {
 
         return { ...payload, type: normalizedType };
     };
+    const parseIncomingMaterialSelection = () => {
+        const repeated = urlParams.getAll('materials[]');
+        const csv = (urlParams.get('materials') || '')
+            .split(',')
+            .map(value => value.trim())
+            .filter(Boolean);
+
+        return Array.from(new Set(
+            [...repeated, ...csv]
+                .map(type => normalizeMaterialTab(type))
+                .filter(Boolean)
+        ));
+    };
+    const incomingSelectedMaterials = parseIncomingMaterialSelection();
+    const incomingOpenCreate = normalizeMaterialTab(urlParams.get('open_create'));
+
+    function writeSharedMaterialsUrl(urlValue) {
+        try {
+            const url = new URL(urlValue, window.location.origin);
+            localStorage.setItem('lastMaterialsUrl', url.toString());
+            const cookieValue = `${SHARED_LAST_URL_COOKIE}=${encodeURIComponent(url.toString())}; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax`;
+            document.cookie = cookieValue;
+
+            if (window.location.hostname.endsWith('.lvh.me')) {
+                document.cookie = `${cookieValue}; domain=.lvh.me`;
+            }
+        } catch (e) {
+            // Ignore storage/cookie errors
+        }
+    }
 
     if (!Array.isArray(savedFilter.selected)) {
         savedFilter.selected = [];
@@ -1780,6 +1812,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     savedFilter.selected = Array.from(new Set(savedFilter.selected.map(type => normalizeMaterialTab(type)).filter(Boolean)));
     savedFilter.order = Array.from(new Set(savedFilter.order.map(type => normalizeMaterialTab(type)).filter(Boolean)));
+
+    if (incomingSelectedMaterials.length > 0) {
+        savedFilter = {
+            selected: incomingSelectedMaterials.slice(),
+            order: incomingSelectedMaterials.slice(),
+        };
+    }
 
     const searchQuery = @json(request('search'));
     const searchQueryRaw = typeof searchQuery === 'string' ? searchQuery.trim() : '';
@@ -2202,7 +2241,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const url = new URL(window.location.href);
                 url.searchParams.set('tab', materialType);
                 history.replaceState(null, null, url.toString());
-                localStorage.setItem('lastMaterialsUrl', url.toString());
+                writeSharedMaterialsUrl(url.toString());
             } catch (e) {
                 // Ignore
             }
@@ -4983,7 +5022,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 url.searchParams.set('tab', btn.dataset.tab);
                 // Reset page to 1 when switching tabs to avoid empty pages
                 url.searchParams.delete(btn.dataset.tab + '_page'); 
-                localStorage.setItem('lastMaterialsUrl', url.toString());
+                writeSharedMaterialsUrl(url.toString());
                 // Note: We don't pushState here to avoid reload, but saving to LS is enough for Navbar return
             });
         });
@@ -4993,7 +5032,35 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- Save Current State for Navbar Return ---
     // Save the full current URL to localStorage on page load
-    localStorage.setItem('lastMaterialsUrl', window.location.href);
+    writeSharedMaterialsUrl(window.location.href);
+
+    if (incomingOpenCreate) {
+        const createResourceMap = {
+            brick: 'bricks',
+            cat: 'cats',
+            ceramic: 'ceramics',
+            sand: 'sands',
+            cement: 'cements',
+            steel: 'steels',
+            kasa_gypsum: 'kasa_gypsums',
+            paku_tembak: 'paku_tembaks',
+            paku: 'pakus',
+        };
+        const resource = createResourceMap[incomingOpenCreate];
+        const openCreateLink = resource
+            ? document.querySelector(`.material-choice-card[href*="/${resource}/create"]`)
+            : null;
+
+        if (openCreateLink) {
+            window.setTimeout(() => {
+                openCreateLink.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                const cleanUrl = new URL(window.location.href);
+                cleanUrl.searchParams.delete('open_create');
+                history.replaceState(null, null, cleanUrl.toString());
+                writeSharedMaterialsUrl(cleanUrl.toString());
+            }, 120);
+        }
+    }
 
     // Add click handlers to "Lihat Semua" buttons to save current tab
     document.querySelectorAll('a[href*="bricks.index"], a[href*="cats.index"], a[href*="cements.index"], a[href*="sands.index"], a[href*="steels.index"], a[href*="kasa_gypsums.index"], a[href*="paku_tembaks.index"], a[href*="pakus.index"]').forEach(link => {
