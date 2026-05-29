@@ -8,6 +8,7 @@ use App\Support\Auth\SupplyPermissionGate;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Throwable;
@@ -68,6 +69,7 @@ class AppServiceProvider extends ServiceProvider
         View::composer('layouts.app', function ($view): void {
             $user = request()->user();
             $sidebarStoresMissingMapCount = 0;
+            $sidebarProjectDraftCount = 0;
 
             if ($user instanceof User) {
                 /** @var SupplyPermissionGate $permissionGate */
@@ -89,12 +91,56 @@ class AppServiceProvider extends ServiceProvider
                         report($exception);
                     }
                 }
+
+                if (trim((string) config('services.calculation_service.base_url', '')) !== ''
+                    && $permissionGate->allowsAny($user, [
+                        'calculations.view',
+                        'calculations.create',
+                        'calculations.update',
+                        'calculations.delete',
+                        'calculations.export',
+                        'calculations.manage',
+                        'projects.view',
+                        'projects.create',
+                        'projects.update',
+                        'projects.delete',
+                        'projects.manage',
+                    ])) {
+                    $sidebarProjectDraftCount = $this->resolveSidebarProjectDraftCount();
+                }
             }
 
             $view->with([
                 'sidebarStoresMissingMapCount' => $sidebarStoresMissingMapCount,
-                'sidebarProjectDraftCount' => 0,
+                'sidebarProjectDraftCount' => $sidebarProjectDraftCount,
             ]);
         });
+    }
+
+    private function resolveSidebarProjectDraftCount(): int
+    {
+        $baseUrl = rtrim((string) config('services.calculation_service.base_url'), '/');
+        if ($baseUrl === '') {
+            return 0;
+        }
+
+        try {
+            $response = Http::baseUrl($baseUrl)
+                ->acceptJson()
+                ->timeout(4)
+                ->get('/api/v1/calculation-drafts', [
+                    'status' => 'draft',
+                ]);
+
+            if (! $response->successful()) {
+                return 0;
+            }
+
+            $data = $response->json('data', []);
+
+            return is_array($data) ? count($data) : 0;
+        } catch (Throwable) {
+            return 0;
+        }
     }
 }

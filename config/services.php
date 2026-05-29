@@ -67,6 +67,10 @@ return [
         'consume_path' => env('CALCULATION_FE_CONSUME_PATH', '/auth/consume'),
     ],
 
+    'calculation_service' => [
+        'base_url' => env('CALCULATION_SERVICE_BASE_URL', 'http://127.0.0.1:8000'),
+    ],
+
     'google' => [
         'maps_api_key' => env('GOOGLE_MAPS_API_KEY'),
     ],

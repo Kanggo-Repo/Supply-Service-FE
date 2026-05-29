@@ -21,12 +21,25 @@ class MaterialManagementPageTest extends TestCase
         config()->set('services.supply_service.service_name', 'supply-fe');
         config()->set('services.supply_service.token', 'local-supply-token');
         config()->set('services.supply_service.verify_ssl', false);
+        config()->set('services.platform_fe.base_url', 'http://platformfe.lvh.me:8021');
+        config()->set('services.calculation_fe.base_url', 'http://calcfe.lvh.me:8001');
+        config()->set('services.calculation_service.base_url', 'http://calc-be.test');
     }
 
     public function test_materials_index_reads_selected_family_and_filter_metadata_from_supply_be(): void
     {
         $user = User::factory()->create([
-            'permission_snapshot' => ['materials.view'],
+            'permission_snapshot' => [
+                'materials.view',
+                'projects.view',
+                'workers.view',
+                'skills.view',
+                'recommendations.view',
+                'store-search-radius.view',
+                'work-taxonomy.view',
+                'users.view',
+                'roles.view',
+            ],
         ]);
 
         Http::fake([
@@ -110,6 +123,11 @@ class MaterialManagementPageTest extends TestCase
         $response->assertSee('Alpha Brick');
         $response->assertSee('Roster');
         $response->assertSee('data-material-tabs-scroll', false);
+        $response->assertSee('http://calcfe.lvh.me:8001/work-items', false);
+        $response->assertSee('http://calcfe.lvh.me:8001/material-calculations/start', false);
+        $response->assertSee('http://platformfe.lvh.me:8021/workers', false);
+        $response->assertSee('http://platformfe.lvh.me:8021/skills', false);
+        $response->assertDontSee('Hitung via Calculation FE');
 
         Http::assertSent(function (ClientRequest $request) {
             if (! str_starts_with($request->url(), 'http://supply-be.test/api/v1/materials/brick')) {
@@ -220,6 +238,100 @@ class MaterialManagementPageTest extends TestCase
         $response->assertSee('#brick-letter-C', false);
         $response->assertSee('#brick-letter-S', false);
         $response->assertSee('data-letter-pages=', false);
+    }
+
+    public function test_materials_sidebar_shows_project_draft_badge_from_calculation_service(): void
+    {
+        $user = User::factory()->create([
+            'permission_snapshot' => [
+                'materials.view',
+                'projects.view',
+            ],
+        ]);
+
+        Http::fake([
+            'http://supply-be.test/api/v1/materials/summary' => Http::response([
+                'data' => [
+                    'families' => [
+                        'brick' => 1,
+                        'cement' => 0,
+                        'sand' => 0,
+                        'cat' => 0,
+                        'ceramic' => 0,
+                        'nat' => 0,
+                        'steel' => 0,
+                        'kasa_gypsum' => 0,
+                        'paku_tembak' => 0,
+                        'paku' => 0,
+                    ],
+                    'display_families' => [
+                        'brick' => 1,
+                        'cement' => 0,
+                        'sand' => 0,
+                        'cat' => 0,
+                        'ceramic' => 0,
+                        'steel' => 0,
+                        'kasa_gypsum' => 0,
+                        'paku_tembak' => 0,
+                        'paku' => 0,
+                    ],
+                    'display_letters' => [
+                        'brick' => ['A'],
+                        'cement' => [],
+                        'sand' => [],
+                        'cat' => [],
+                        'ceramic' => [],
+                        'steel' => [],
+                        'kasa_gypsum' => [],
+                        'paku_tembak' => [],
+                        'paku' => [],
+                    ],
+                    'grand_total' => 1,
+                ],
+            ], 200),
+            'http://supply-be.test/api/v1/materials/brick*' => Http::response([
+                'data' => [
+                    [
+                        'id' => 1,
+                        'family' => 'brick',
+                        'label' => 'Brick Alpha Roster',
+                        'brand' => 'Alpha Brick',
+                        'type' => 'Roster',
+                    ],
+                ],
+                'current_page' => 1,
+                'per_page' => 50,
+                'total' => 1,
+                'last_page' => 1,
+            ], 200),
+            'http://supply-be.test/api/v1/units/grouped' => Http::response([
+                'success' => true,
+                'data' => [
+                    'brick' => [],
+                    'cement' => [],
+                    'nat' => [],
+                    'sand' => [],
+                    'cat' => [],
+                    'ceramic' => [],
+                    'steel' => [],
+                    'kasa_gypsum' => [],
+                    'paku_tembak' => [],
+                    'paku' => [],
+                ],
+            ], 200),
+            'http://calc-be.test/api/v1/calculation-drafts*' => Http::response([
+                'data' => [
+                    ['public_id' => 'draft-001'],
+                    ['public_id' => 'draft-002'],
+                ],
+            ], 200),
+        ]);
+
+        $response = $this->actingAs($user)->get('/materials?tab=brick');
+
+        $response->assertOk();
+        $response->assertSee('title="2 draft proyek aktif"', false);
+        $response->assertSee('http://calcfe.lvh.me:8001/material-calculations/start', false);
     }
 
     public function test_material_tab_endpoint_forwards_chunk_page_to_supply_be(): void

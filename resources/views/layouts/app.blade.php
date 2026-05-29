@@ -42,12 +42,7 @@
         $platformFeUrl = static fn (string $path = ''): string => $platformFeBaseUrl !== ''
             ? $platformFeBaseUrl.'/'.ltrim($path, '/')
             : '#';
-        $monolithBaseUrl = rtrim((string) config('services.monolith_app.base_url', ''), '/');
-        $monolithUrl = static fn (string $path = ''): string => $monolithBaseUrl !== ''
-            ? $monolithBaseUrl.'/'.ltrim($path, '/')
-            : '#';
         $calculationFeBaseUrl = rtrim((string) config('services.calculation_fe.base_url', ''), '/');
-        $calculationFeEntryUrl = $calculationFeBaseUrl !== '' ? $calculationFeBaseUrl : '';
         $calculationFeUrl = static fn (string $path = ''): string => $calculationFeBaseUrl !== ''
             ? $calculationFeBaseUrl.'/'.ltrim($path, '/')
             : '#';
@@ -417,9 +412,22 @@
         $canSeeUnits = $sidebarGate->allowsAny($sidebarUser, [
             'units.view', 'units.create', 'units.update', 'units.delete', 'units.manage',
         ]);
+        $canSeeRecommendations = $sidebarGate->allowsAny($sidebarUser, [
+            'recommendations.view', 'recommendations.update', 'recommendations.manage', 'settings.manage',
+        ]);
         $canSeeStoreSearchRadiusSettings = $sidebarGate->allowsAny($sidebarUser, [
             'store-search-radius.view', 'store-search-radius.update', 'store-search-radius.manage', 'settings.manage',
         ]);
+        $canSeeTaxonomy = $sidebarGate->allowsAny($sidebarUser, [
+            'work-taxonomy.view', 'work-taxonomy.create', 'work-taxonomy.update', 'work-taxonomy.delete', 'work-taxonomy.manage', 'settings.manage',
+        ]);
+        $canSeeUsers = $sidebarGate->allowsAny($sidebarUser, [
+            'users.view', 'users.create', 'users.update', 'users.delete', 'users.assign-roles', 'users.manage', 'settings.manage',
+        ]);
+        $canSeeRoles = $sidebarGate->allowsAny($sidebarUser, [
+            'roles.view', 'roles.create', 'roles.update', 'roles.delete', 'roles.manage', 'settings.manage',
+        ]);
+        $canSeeSettings = $canSeeRecommendations || $canSeeStoreSearchRadiusSettings || $canSeeTaxonomy || $canSeeUsers || $canSeeRoles;
     @endphp
     <aside class="sidebar-nav" id="sidebarNav">
         <div class="nav">
@@ -672,7 +680,7 @@
                         <div class="nav-dropdown-content">
                             @canany(['work-items.view', 'work-items.create', 'work-items.update', 'work-items.delete', 'work-items.manage', 'projects.view', 'projects.manage'])
                                 <div class="dropdown-item-parent">
-                                    <a href="{{ $monolithUrl('/work-items') }}"
+                                    <a href="{{ $calculationFeUrl('/work-items') }}"
                                     class="dropdown-item-trigger d-flex align-items-center text-decoration-none"
                                     role="button">
                                         Lihat Daftar Item Pekerjaan
@@ -682,22 +690,12 @@
 
                             @canany(['calculations.view', 'calculations.create', 'calculations.update', 'calculations.delete', 'calculations.export', 'calculations.manage', 'projects.view', 'projects.manage'])
                                 <div class="dropdown-item-parent">
-                                    <a href="{{ $calculationFeUrl('/material-calculations/create') }}" id="calcNavLink"
+                                    <a href="{{ $calculationFeUrl('/material-calculations/start') }}" id="calcNavLink"
                                     class="dropdown-item-trigger d-flex align-items-center text-decoration-none"
                                     role="button">
                                         Hitung Item Pekerjaan Proyek
                                     </a>
                                 </div>
-
-                                @if ($calculationFeEntryUrl !== '')
-                                    <div class="dropdown-item-parent">
-                                        <a href="{{ $calculationFeEntryUrl }}"
-                                        class="dropdown-item-trigger d-flex align-items-center text-decoration-none"
-                                        role="button">
-                                            Hitung via Calculation FE
-                                        </a>
-                                    </div>
-                                @endif
 
                                 <div class="dropdown-item-parent">
                                     <a href="https://docs.google.com/spreadsheets/d/1tsEQ3a4duHw2AROxsbHaz41n3EiwoFQEpqmWc5XdMP4/edit?usp=sharing" target="_blank"
@@ -713,13 +711,13 @@
             @endcanany
 
             @can('workers.view')
-                <a href="{{ $monolithUrl('/workers') }}" class="{{ request()->routeIs('workers.*') ? 'active' : '' }}">
+                <a href="{{ $platformFeUrl('/workers') }}" target="_self">
                     <i class="bi bi-people"></i> Tukang
                 </a>
             @endcan
 
             @can('skills.view')
-                <a href="{{ $monolithUrl('/skills') }}" class="{{ request()->routeIs('skills.*') ? 'active' : '' }}">
+                <a href="{{ $platformFeUrl('/skills') }}" target="_self">
                     <i class="bi bi-tools"></i> Keahlian
                 </a>
             @endcan
@@ -730,7 +728,7 @@
                 </a>
             @endif
 
-            @if($canSeeStoreSearchRadiusSettings)
+            @if($canSeeSettings)
                 <!-- Settings Dropdown -->
                 <div class="nav-dropdown-wrapper settings-wrapper" style="margin-left: auto;">
                     <button type="button" class="nav-link-btn {{ request()->routeIs('settings.*') ? 'active' : '' }}" id="settingsDropdownToggle">
@@ -739,12 +737,62 @@
 
                     <div class="nav-dropdown-menu" id="settingsDropdownMenu" style="left: auto; right: 0;">
                         <div class="nav-dropdown-content">
+                            @if($calculationFeBaseUrl !== '' && $canSeeRecommendations)
+                                <div class="dropdown-item-parent">
+                                    <a href="{{ $calculationFeUrl('/settings/recommendations') }}"
+                                    class="dropdown-item-trigger d-flex align-items-center text-decoration-none"
+                                    role="button">
+                                        Manajemen Filter Preferensi
+                                    </a>
+                                </div>
+                            @endif
                             @if($canSeeStoreSearchRadiusSettings)
                                 <div class="dropdown-item-parent">
                                     <a href="{{ route('settings.store-search-radius.index') }}"
                                     class="dropdown-item-trigger d-flex align-items-center text-decoration-none"
                                     role="button">
                                         Radius Pencarian Toko
+                                    </a>
+                                </div>
+                            @endif
+                            @if($calculationFeBaseUrl !== '' && $canSeeTaxonomy)
+                                <div class="dropdown-item-parent">
+                                    <a href="{{ $calculationFeUrl('/settings/work-floors') }}"
+                                    class="dropdown-item-trigger d-flex align-items-center text-decoration-none"
+                                    role="button">
+                                        Manajemen Lantai
+                                    </a>
+                                </div>
+                                <div class="dropdown-item-parent">
+                                    <a href="{{ $calculationFeUrl('/settings/work-areas') }}"
+                                    class="dropdown-item-trigger d-flex align-items-center text-decoration-none"
+                                    role="button">
+                                        Manajemen Area
+                                    </a>
+                                </div>
+                                <div class="dropdown-item-parent">
+                                    <a href="{{ $calculationFeUrl('/settings/work-fields') }}"
+                                    class="dropdown-item-trigger d-flex align-items-center text-decoration-none"
+                                    role="button">
+                                        Manajemen Bidang
+                                    </a>
+                                </div>
+                            @endif
+                            @if($platformFeBaseUrl !== '' && $canSeeUsers)
+                                <div class="dropdown-item-parent">
+                                    <a href="{{ $platformFeUrl('/settings/users') }}"
+                                    class="dropdown-item-trigger d-flex align-items-center text-decoration-none"
+                                    role="button">
+                                        Manajemen User
+                                    </a>
+                                </div>
+                            @endif
+                            @if($platformFeBaseUrl !== '' && $canSeeRoles)
+                                <div class="dropdown-item-parent">
+                                    <a href="{{ $platformFeUrl('/settings/roles') }}"
+                                    class="dropdown-item-trigger d-flex align-items-center text-decoration-none"
+                                    role="button">
+                                        Manajemen Role
                                     </a>
                                 </div>
                             @endif
