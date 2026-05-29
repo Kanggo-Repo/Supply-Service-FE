@@ -14,12 +14,6 @@
             <a href="{{ route('materials.index', ['family' => $family]) }}" class="pill" style="text-decoration: none;">Kembali ke List</a>
         </div>
 
-        @if (session('error'))
-            <div class="alert" style="margin-bottom: 18px;">
-                {{ session('error') }}
-            </div>
-        @endif
-
         <form method="POST" action="{{ $mode === 'create' ? route('materials.store') : route('materials.update', ['family' => $family, 'id' => $material['id']]) }}" style="display:grid; gap:18px;">
             @csrf
             @if ($mode === 'edit')

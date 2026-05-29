@@ -616,8 +616,16 @@
                         const message = 'Session perhitungan di server sudah habis. Silakan hitung ulang untuk hasil terbaru.';
                         if (typeof window.showToast === 'function') {
                             window.showToast(message, 'error');
+                        } else if (typeof window.showConfirm === 'function') {
+                            window.showConfirm({
+                                title: 'Gagal',
+                                message,
+                                confirmText: 'Tutup',
+                                type: 'danger',
+                                hideCancel: true,
+                            });
                         } else {
-                            alert(message);
+                            console.error(message);
                         }
                     }
 
@@ -2509,6 +2517,76 @@
                 const nextQuery = url.searchParams.toString();
                 window.history.replaceState({}, document.title, `${url.pathname}${nextQuery ? `?${nextQuery}` : ''}${url.hash}`);
             }
+
+            function resolveInlineAlertType(element) {
+                if (element.classList.contains('alert-success')) {
+                    return 'success';
+                }
+
+                if (element.classList.contains('alert-warning')) {
+                    return 'warning';
+                }
+
+                if (element.classList.contains('alert-info')) {
+                    return 'info';
+                }
+
+                return 'error';
+            }
+
+            function consumeInlineAlerts(root = document) {
+                const scope = root instanceof Element || root instanceof DocumentFragment || root instanceof Document
+                    ? root
+                    : document;
+
+                scope.querySelectorAll('.alert').forEach((alertEl) => {
+                    if (!(alertEl instanceof HTMLElement) || alertEl.dataset.toastConsumed === '1') {
+                        return;
+                    }
+
+                    if (alertEl.closest('#toast-container, #confirm-modal, .confirm-dialog, .toast')) {
+                        return;
+                    }
+
+                    const message = (alertEl.innerText || alertEl.textContent || '')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+
+                    if (!message) {
+                        alertEl.dataset.toastConsumed = '1';
+                        alertEl.remove();
+                        return;
+                    }
+
+                    alertEl.dataset.toastConsumed = '1';
+                    createToast(message, resolveInlineAlertType(alertEl), {
+                        title: alertEl.dataset.toastTitle || undefined,
+                        duration: 5200,
+                    });
+                    alertEl.remove();
+                });
+            }
+
+            window.consumeInlineAlerts = consumeInlineAlerts;
+            consumeInlineAlerts(document);
+
+            const inlineAlertObserver = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    mutation.addedNodes.forEach((node) => {
+                        if (node instanceof Element) {
+                            consumeInlineAlerts(node);
+                            if (node.parentElement) {
+                                consumeInlineAlerts(node.parentElement);
+                            }
+                        }
+                    });
+                });
+            });
+
+            inlineAlertObserver.observe(document.body, {
+                childList: true,
+                subtree: true,
+            });
         })();
     </script>
 
@@ -2631,7 +2709,7 @@
                     return;
                 }
 
-                window.alert(message);
+                console[type === 'error' ? 'error' : 'info'](message);
             }
 
             function loadImage(file) {

@@ -1882,13 +1882,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                     showLoadingState(form);
                                     HTMLFormElement.prototype.submit.call(form);
                                 }
-                            } else if (confirm(confirmMessage)) {
-                                if (form.dataset.historyRestore === '1') {
-                                    await submitHistoryRestoreViaAjax(form);
-                                    return;
-                                }
-                                showLoadingState(form);
-                                HTMLFormElement.prototype.submit.call(form);
                             }
                             return;
                         }
@@ -1912,11 +1905,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                         HTMLFormElement.prototype.submit.call(form);
                                     }
                                 });
-                            } else {
-                                if (confirm('Simpan perubahan data ini?')) {
-                                    showLoadingState(form);
-                                    HTMLFormElement.prototype.submit.call(form);
-                                }
                             }
                             return;
                         }
@@ -2355,8 +2343,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     cancelText: 'Kembali',
                     type: 'warning'
                 });
-            } else {
-                confirmed = window.confirm('Anda memiliki perubahan yang belum disimpan. Yakin ingin menutup?');
             }
             if (!confirmed) return;
         }
