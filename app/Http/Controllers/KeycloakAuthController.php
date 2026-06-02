@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Services\Auth\KeycloakOidcService;
 use App\Services\Platform\PlatformServiceClient;
+use App\Support\Auth\SharedAuthSubjectCookie;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -81,6 +82,7 @@ class KeycloakAuthController extends Controller
         Auth::guard('web')->login($user, true);
         $request->session()->regenerate();
         $this->storeNavigationContext($request, $navigation);
+        SharedAuthSubjectCookie::queue($request, (string) $user->auth_subject);
 
         if (($navigation['pending_access'] ?? false) === true) {
             return redirect()->route('service.access.pending');
@@ -119,6 +121,7 @@ class KeycloakAuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
         Auth::guard('web')->logout();
+        SharedAuthSubjectCookie::queueForget($request);
 
         return redirect()->away($this->keycloakOidcService->logoutUrl(
             postLogoutRedirectUri: route('login'),

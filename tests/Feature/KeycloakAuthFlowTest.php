@@ -97,6 +97,7 @@ class KeycloakAuthFlowTest extends TestCase
         ])->get('/auth/consume?code=authorization-code&state=expected-state');
 
         $response->assertRedirect(route('materials.index'));
+        $response->assertCookie('kanggo_active_subject', 'keycloak:kc-user-1');
         $this->assertAuthenticated();
 
         $user = User::query()->where('email', 'bridge@example.com')->firstOrFail();
@@ -160,5 +161,21 @@ class KeycloakAuthFlowTest extends TestCase
             'platform_preferred_app' => 'platform',
         ])->get('/materials')
             ->assertRedirect('http://platformfe.lvh.me:8021?access_notice=service-denied&requested_service=supply');
+    }
+
+    public function test_platform_auth_middleware_logs_out_local_user_when_shared_subject_cookie_points_to_another_account(): void
+    {
+        $user = User::factory()->create([
+            'auth_provider' => 'keycloak',
+            'auth_subject' => 'keycloak:kc-user-old',
+        ]);
+
+        $this->actingAs($user)
+            ->withSession(['platform_access_token' => 'access-token-123'])
+            ->withCookie('kanggo_active_subject', 'keycloak:kc-user-new')
+            ->get('/materials')
+            ->assertRedirect(route('auth.redirect'));
+
+        $this->assertGuest();
     }
 }
