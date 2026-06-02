@@ -178,4 +178,18 @@ class KeycloakAuthFlowTest extends TestCase
 
         $this->assertGuest();
     }
+
+    public function test_profile_route_redirects_to_platform_profile_owner_when_configured(): void
+    {
+        $user = User::factory()->create([
+            'auth_provider' => 'keycloak',
+            'auth_subject' => 'keycloak:kc-user-1',
+        ]);
+
+        $this->actingAs($user)->withSession([
+            'platform_allowed_services' => ['supply'],
+            'platform_pending_access' => false,
+        ])->get('/profile')
+            ->assertRedirect('http://platformfe.lvh.me:8021/profile');
+    }
 }

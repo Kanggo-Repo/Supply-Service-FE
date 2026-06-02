@@ -376,7 +376,7 @@
                             <span class="topbar-menu-role">{{ \Illuminate\Support\Str::headline($activeRole) }}</span>
                         </div>
 
-                        <a class="dropdown-item" href="{{ route('profile.show') }}">
+                        <a class="dropdown-item" href="{{ $platformFeBaseUrl !== '' ? $platformFeUrl('/profile') : route('profile.show') }}">
                             <i class="bi bi-person-badge"></i>
                             <span>Profile</span>
                         </a>
@@ -3000,3 +3000,4 @@
     </script>
 </body>
 </html>
+

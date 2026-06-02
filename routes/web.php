@@ -9,13 +9,22 @@ use App\Http\Controllers\StoreDonorController;
 use App\Http\Controllers\StoreLocationDonorController;
 use App\Http\Controllers\StoreSearchRadiusSettingController;
 use App\Http\Controllers\UnitManagementController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/login', [KeycloakAuthController::class, 'redirectToIdentityProvider'])->name('login');
 Route::get('/auth/redirect', [KeycloakAuthController::class, 'redirectToIdentityProvider'])->name('auth.redirect');
 Route::get('/auth/consume', [KeycloakAuthController::class, 'consume'])->name('auth.consume');
 Route::post('/logout', [KeycloakAuthController::class, 'logout'])->name('logout');
-Route::view('/profile', 'profile.show')->middleware(['platform.auth', 'service.access:supply'])->name('profile.show');
+Route::get('/profile', function (Request $request) {
+    $platformFeBaseUrl = rtrim((string) config('services.platform_fe.base_url', ''), '/');
+
+    if ($platformFeBaseUrl !== '') {
+        return redirect()->away($platformFeBaseUrl.'/profile');
+    }
+
+    return view('profile.show');
+})->middleware(['platform.auth', 'service.access:supply'])->name('profile.show');
 Route::get('/access-pending', [ServiceAccessController::class, 'pending'])
     ->middleware('platform.auth')
     ->name('service.access.pending');
