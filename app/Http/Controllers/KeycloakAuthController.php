@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Services\Auth\KeycloakOidcService;
 use App\Services\Platform\PlatformServiceClient;
+use App\Support\Auth\LoginRedirectMemory;
 use App\Support\Auth\SharedAuthSubjectCookie;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -98,7 +99,11 @@ class KeycloakAuthController extends Controller
             return redirect()->route('service.access.pending');
         }
 
-        return redirect()->intended(route('materials.index'));
+        $redirectTarget = LoginRedirectMemory::pull($request);
+
+        return $redirectTarget !== null
+            ? redirect()->to($redirectTarget)
+            : redirect()->intended(route('materials.index'));
     }
 
     public function logout(Request $request): RedirectResponse

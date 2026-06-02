@@ -110,6 +110,46 @@ class KeycloakAuthFlowTest extends TestCase
         $this->assertSame(['supply'], session('platform_allowed_services'));
     }
 
+    public function test_consume_returns_user_to_remembered_page_after_standby_relogin(): void
+    {
+        Http::fake([
+            'https://auth.example.test/realms/kanggo/protocol/openid-connect/token' => Http::response([
+                'access_token' => 'access-token-123',
+                'refresh_token' => 'refresh-token-123',
+                'id_token' => 'id-token-123',
+                'expires_in' => 300,
+            ]),
+            'http://127.0.0.1:8020/api/v1/me' => Http::response([
+                'data' => [
+                    'identity' => [
+                        'subject' => 'kc-user-9',
+                        'email' => 'bridge@example.com',
+                        'name' => 'Supply Bridge User',
+                    ],
+                    'roles' => ['supply_admin'],
+                    'permissions' => ['materials.view', 'stores.view', 'units.view'],
+                ],
+            ]),
+            'http://127.0.0.1:8020/api/v1/navigation' => Http::response([
+                'data' => [
+                    'preferred_app' => 'supply',
+                    'pending_access' => false,
+                    'allowed_services' => ['supply'],
+                    'blocked_services' => [],
+                    'pending_services' => ['platform', 'calculation'],
+                ],
+            ]),
+        ]);
+
+        $response = $this->withSession([
+            'oidc_state' => 'expected-state',
+            'oidc_code_verifier' => 'verifier-123',
+            'auth_return_to' => '/stores?search=cement',
+        ])->get('/auth/consume?code=authorization-code&state=expected-state');
+
+        $response->assertRedirect('/stores?search=cement');
+    }
+
     public function test_consume_redirects_to_calculation_service_when_user_has_no_supply_access(): void
     {
         Http::fake([
