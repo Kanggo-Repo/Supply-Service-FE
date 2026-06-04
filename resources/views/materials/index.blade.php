@@ -17,7 +17,7 @@
 <!-- Inline script to restore tab ASAP before page render -->
 <script>
 (function() {
-    document.documentElement.classList.add('materials-booting');
+    // Fail-open: do not hide the whole page before JS finishes booting.
     document.documentElement.classList.add('materials-lock');
 })();
 (function() {
@@ -86,6 +86,15 @@
 })();
 document.addEventListener('DOMContentLoaded', function() {
     document.body.classList.add('materials-lock');
+    document.documentElement.classList.remove('materials-booting');
+});
+
+window.addEventListener('error', function() {
+    document.documentElement.classList.remove('materials-booting');
+});
+
+window.addEventListener('unhandledrejection', function() {
+    document.documentElement.classList.remove('materials-booting');
 });
 
 // CRITICAL: Prevent ANY window scroll attempts
@@ -214,18 +223,6 @@ html {
     scroll-padding-top: 80px;
 }
 
-html.materials-booting .material-tab-panel,
-html.materials-booting .material-tab-action,
-html.materials-booting #emptyMaterialState,
-html.materials-booting .material-tabs,
-html.materials-booting .material-tab-actions {
-    opacity: 0;
-    visibility: hidden;
-}
-html.materials-booting .page-content {
-    opacity: 0;
-    visibility: hidden;
-}
 @keyframes material-row-blink {
     0%, 100% { opacity: 0; }
     50% { opacity: 1; }
@@ -1643,7 +1640,7 @@ html.materials-booting .page-content {
                 {{-- Removed 'material-section' class to prevent global CSS margin-top conflict which causes gap between tab and content --}}
                 <div class="material-tab-panel {{ $material['type'] === $activeTab ? 'active' : 'hidden' }}" data-tab="{{ $material['type'] }}" id="section-{{ $material['type'] }}" style="margin-bottom: 24px;">
                     <div class="material-tab-card">
-                    
+
                     @include('materials.partials.table', ['material' => $material, 'grandTotal' => $grandTotal])
                     </div>
                 </div>
@@ -2551,7 +2548,7 @@ document.addEventListener('DOMContentLoaded', function() {
             updateTabVisibility();
         });
     }
-    
+
     const modal = document.getElementById('floatingModal');
     const modalBody = document.getElementById('modalBody');
     const modalTitle = document.getElementById('modalTitle');
@@ -4935,10 +4932,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Expose closeModal as global function for form cancel buttons
     window.closeFloatingModalLocal = closeModal;
-    
+
     // Save original global closer (from app.blade.php)
     const originalGlobalCloser = window.closeFloatingModal;
-    
+
     window.closeFloatingModal = function() {
         // If local modal is open, use local closer (with dirty check)
         if (modal.classList.contains('active')) {
@@ -5021,7 +5018,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const url = new URL(window.location.href);
                 url.searchParams.set('tab', btn.dataset.tab);
                 // Reset page to 1 when switching tabs to avoid empty pages
-                url.searchParams.delete(btn.dataset.tab + '_page'); 
+                url.searchParams.delete(btn.dataset.tab + '_page');
                 writeSharedMaterialsUrl(url.toString());
                 // Note: We don't pushState here to avoid reload, but saving to LS is enough for Navbar return
             });
@@ -5491,10 +5488,10 @@ document.addEventListener('DOMContentLoaded', function() {
     function highlightSearchMatchesInCell(cell, queryLower, escapedQuery) {
         if (!cell || !queryLower) return false;
         const cellText = cell.textContent || '';
-        
+
         // Check if query is numeric (ignoring spaces)
         const isNumericQuery = /^[0-9.,]+$/.test(queryLower.replace(/\s/g, ''));
-        
+
         // Standard text search for non-numeric queries
         if (!isNumericQuery) {
             if (!cellText.toLowerCase().includes(queryLower)) return false;
@@ -5503,7 +5500,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // But keep track of original indices to highlight correct range
             const normalizedCellText = cellText.replace(/[^0-9]/g, '');
             const normalizedQuery = queryLower.replace(/[^0-9]/g, '');
-            
+
             if (!normalizedCellText.includes(normalizedQuery)) return false;
         }
 
@@ -5535,7 +5532,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (isNumericQuery) {
                 // Numeric logic: match normalized digits but highlight formatted string
                 const normalizedQuery = queryLower.replace(/[^0-9]/g, '');
-                
+
                 // Build a map of normalized indices to original indices
                 // "15.000" -> normalized "15000"
                 // Map: 0->0('1'), 1->1('5'), 2->3('0'), 3->4('0'), 4->5('0')
@@ -5546,29 +5543,29 @@ document.addEventListener('DOMContentLoaded', function() {
                         map.push(i);
                     }
                 }
-                
+
                 const normalizedText = text.replace(/[^0-9]/g, '');
                 let searchStart = 0;
                 let matchIdx;
-                
+
                 while ((matchIdx = normalizedText.indexOf(normalizedQuery, searchStart)) !== -1) {
                     nodeHasMatch = true;
-                    
+
                     // Map back to original string indices
                     // Start index in original string
                     const originalStart = map[matchIdx];
                     // End index in original string (inclusive of last char)
                     const originalEnd = map[matchIdx + normalizedQuery.length - 1] + 1;
-                    
+
                     if (originalStart > lastIndex) {
                         fragment.appendChild(document.createTextNode(text.slice(lastIndex, originalStart)));
                     }
-                    
+
                     const span = document.createElement('span');
                     span.className = 'material-search-hit';
                     span.textContent = text.slice(originalStart, originalEnd);
                     fragment.appendChild(span);
-                    
+
                     lastIndex = originalEnd;
                     searchStart = matchIdx + normalizedQuery.length;
                 }
@@ -5773,14 +5770,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const colEnd = Number.parseInt(th.dataset.colEnd, 10);
             if (Number.isNaN(colStart) || Number.isNaN(colEnd)) return;
             if (!isSearchableColumnRange(table, colStart, colEnd)) return;
-            
+
             // Find the sort link if it exists
             const sortLink = th.querySelector('a[href*="sort_by"]');
             const targetElement = sortLink || th;
             const headerLabel = (th.textContent || '').replace(/\s+/g, ' ').trim();
 
             th.classList.add('material-search-jump');
-            
+
             // Attach click listener
             targetElement.addEventListener('click', event => {
                 // If clicked on sort icon, allow default behavior (sorting)
@@ -5790,7 +5787,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 // If clicked on text or cell background, prevent sort and jump to search result
                 if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                
+
                 event.preventDefault();
                 event.stopPropagation(); // Stop propagation to prevent link navigation
 
@@ -5803,7 +5800,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 scrollRowIntoContainer(matchRow);
                 window.setTimeout(() => highlightMaterialRowElement(matchRow), 250);
             });
-            
+
             th.dataset.searchJumpBound = 'true';
         });
     }
@@ -6140,10 +6137,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Apply to Ceramic (existing)
         applyToSection('section-ceramic', 'ceramic-sticky-col');
-        
+
         // Apply to Cat (new)
         applyToSection('section-cat', 'cat-sticky-col');
-        
+
         // Apply to Cement (new)
         applyToSection('section-cement', 'cement-sticky-col');
 
@@ -6343,10 +6340,10 @@ document.addEventListener('DOMContentLoaded', function() {
         initializeMaterialChunkLoader(panel);
         syncMaterialLetterLinks(panel);
     });
-    
+
     // Apply sticky offsets for all relevant sections
     applyAllStickyOffsets();
-    
+
     window.setTimeout(() => {
         focusNewMaterialRow();
     }, 200);
