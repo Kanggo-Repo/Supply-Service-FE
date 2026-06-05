@@ -287,6 +287,12 @@ jobs:
           NGINX_CONTAINER="${NGINX_CONTAINER:-nginx_utama}"
           TARGET_BRANCH="${{ needs.resolve_target.outputs.target_branch }}"
 
+          if [ "$APP_SERVICE_PREFIX" = "app" ]; then
+            AUX_CONTAINER_PREFIX="supplyfe"
+          else
+            AUX_CONTAINER_PREFIX="supplyfe_staging"
+          fi
+
           echo "===> Sync code"
           git config --global --add safe.directory "$DEPLOY_DIR"
           cd "$DEPLOY_DIR"
@@ -383,8 +389,9 @@ jobs:
 
           echo "===> Rebuild queue and scheduler"
           docker compose -f "$COMPOSE_FILE" build queue scheduler
-          docker compose -f "$COMPOSE_FILE" stop queue scheduler || true
-          docker compose -f "$COMPOSE_FILE" rm -f queue scheduler || true
+          docker rm -f \
+            "${AUX_CONTAINER_PREFIX}_queue" \
+            "${AUX_CONTAINER_PREFIX}_scheduler" || true
           docker compose -f "$COMPOSE_FILE" up -d --no-deps queue scheduler
 
           echo "===> Stop old app"
