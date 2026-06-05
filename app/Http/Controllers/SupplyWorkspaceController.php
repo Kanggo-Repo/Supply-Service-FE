@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Services\Supply\SupplyServiceClient;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Throwable;
 
 class SupplyWorkspaceController extends Controller
@@ -36,5 +35,4 @@ class SupplyWorkspaceController extends Controller
             'storeTotal' => (int) ($payload['total'] ?? 0),
         ]);
     }
-
 }

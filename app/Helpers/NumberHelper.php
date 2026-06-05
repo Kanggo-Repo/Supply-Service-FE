@@ -5,7 +5,9 @@ namespace App\Helpers;
 class NumberHelper
 {
     private const DEFAULT_DECIMALS = 11;
+
     private const RESULT_DECIMALS = 11;
+
     private const FIXED_DECIMALS = 2;
 
     private static function resolveDecimals(?int $decimals, int $fallback): int

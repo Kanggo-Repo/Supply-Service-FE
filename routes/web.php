@@ -12,337 +12,336 @@ use App\Http\Controllers\UnitManagementController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::get("/login", [
+Route::get('/login', [
     KeycloakAuthController::class,
-    "redirectToIdentityProvider",
-])->name("login");
-Route::get("/auth/redirect", [
+    'redirectToIdentityProvider',
+])->name('login');
+Route::get('/auth/redirect', [
     KeycloakAuthController::class,
-    "redirectToIdentityProvider",
-])->name("auth.redirect");
-Route::get("/auth/consume", [KeycloakAuthController::class, "consume"])->name(
-    "auth.consume",
+    'redirectToIdentityProvider',
+])->name('auth.redirect');
+Route::get('/auth/consume', [KeycloakAuthController::class, 'consume'])->name(
+    'auth.consume',
 );
-Route::get("/auth/callback", [KeycloakAuthController::class, "consume"]);
-Route::post("/logout", [KeycloakAuthController::class, "logout"])->name(
-    "logout",
+Route::get('/auth/callback', [KeycloakAuthController::class, 'consume']);
+Route::post('/logout', [KeycloakAuthController::class, 'logout'])->name(
+    'logout',
 );
-Route::get("/profile", function (Request $request) {
+Route::get('/profile', function (Request $request) {
     $platformFeBaseUrl = rtrim(
-        (string) config("services.platform_fe.base_url", ""),
-        "/",
+        (string) config('services.platform_fe.base_url', ''),
+        '/',
     );
 
-    if ($platformFeBaseUrl !== "") {
-        return redirect()->away($platformFeBaseUrl . "/profile");
+    if ($platformFeBaseUrl !== '') {
+        return redirect()->away($platformFeBaseUrl.'/profile');
     }
 
-    return view("profile.show");
+    return view('profile.show');
 })
-    ->middleware(["platform.auth", "service.access:supply"])
-    ->name("profile.show");
-Route::get("/access-pending", [ServiceAccessController::class, "pending"])
-    ->middleware("platform.auth")
-    ->name("service.access.pending");
+    ->middleware(['platform.auth', 'service.access:supply'])
+    ->name('profile.show');
+Route::get('/access-pending', [ServiceAccessController::class, 'pending'])
+    ->middleware('platform.auth')
+    ->name('service.access.pending');
 
-Route::redirect("/", "/materials");
+Route::redirect('/', '/materials');
 
-Route::middleware(["platform.auth", "service.access:supply"])->group(
+Route::middleware(['platform.auth', 'service.access:supply'])->group(
     function () {
-        Route::get("/materials/type-suggestions", [
+        Route::get('/materials/type-suggestions', [
             MaterialManagementController::class,
-            "typeSuggestions",
+            'typeSuggestions',
         ])
-            ->middleware("supply.permission:materials.view")
-            ->name("materials.type-suggestions");
-        Route::get("/materials/tab/{type}", [
+            ->middleware('supply.permission:materials.view')
+            ->name('materials.type-suggestions');
+        Route::get('/materials/tab/{type}', [
             MaterialManagementController::class,
-            "fetchTab",
+            'fetchTab',
         ])
-            ->middleware("supply.permission:materials.view")
-            ->name("materials.tab");
-        Route::get("/materials", [MaterialManagementController::class, "index"])
-            ->middleware("supply.permission:materials.view")
-            ->name("materials.index");
-        Route::get("/materials/create", [
+            ->middleware('supply.permission:materials.view')
+            ->name('materials.tab');
+        Route::get('/materials', [MaterialManagementController::class, 'index'])
+            ->middleware('supply.permission:materials.view')
+            ->name('materials.index');
+        Route::get('/materials/create', [
             MaterialManagementController::class,
-            "create",
+            'create',
         ])
-            ->middleware("supply.permission:materials.create")
-            ->name("materials.create");
-        Route::post("/materials", [
+            ->middleware('supply.permission:materials.create')
+            ->name('materials.create');
+        Route::post('/materials', [
             MaterialManagementController::class,
-            "store",
+            'store',
         ])
-            ->middleware("supply.permission:materials.create")
-            ->name("materials.store");
-        Route::get("/materials/{family}/{id}/edit", [
+            ->middleware('supply.permission:materials.create')
+            ->name('materials.store');
+        Route::get('/materials/{family}/{id}/edit', [
             MaterialManagementController::class,
-            "edit",
+            'edit',
         ])
-            ->middleware("supply.permission:materials.update")
-            ->name("materials.edit");
-        Route::put("/materials/{family}/{id}", [
+            ->middleware('supply.permission:materials.update')
+            ->name('materials.edit');
+        Route::put('/materials/{family}/{id}', [
             MaterialManagementController::class,
-            "update",
+            'update',
         ])
-            ->middleware("supply.permission:materials.update")
-            ->name("materials.update");
-        Route::delete("/materials/{family}/{id}", [
+            ->middleware('supply.permission:materials.update')
+            ->name('materials.update');
+        Route::delete('/materials/{family}/{id}', [
             MaterialManagementController::class,
-            "destroy",
+            'destroy',
         ])
-            ->middleware("supply.permission:materials.delete")
-            ->name("materials.destroy");
+            ->middleware('supply.permission:materials.delete')
+            ->name('materials.destroy');
 
-        Route::get("/materials/recycle-bin", [
+        Route::get('/materials/recycle-bin', [
             MaterialRecycleBinDonorController::class,
-            "index",
+            'index',
         ])
-            ->middleware("supply.permission:materials.recycle-bin.view")
-            ->name("materials.recycle-bin");
-        Route::post("/materials/{type}/{id}/restore", [
+            ->middleware('supply.permission:materials.recycle-bin.view')
+            ->name('materials.recycle-bin');
+        Route::post('/materials/{type}/{id}/restore', [
             MaterialRecycleBinDonorController::class,
-            "restore",
+            'restore',
         ])
-            ->middleware("supply.permission:materials.recycle-bin.restore")
-            ->name("materials.restore");
-        Route::delete("/materials/{type}/{id}/force-delete", [
+            ->middleware('supply.permission:materials.recycle-bin.restore')
+            ->name('materials.restore');
+        Route::delete('/materials/{type}/{id}/force-delete', [
             MaterialRecycleBinDonorController::class,
-            "forceDelete",
+            'forceDelete',
         ])
-            ->middleware("supply.permission:materials.recycle-bin.delete")
-            ->name("materials.force-delete");
-        Route::post("/materials/bulk/restore", [
+            ->middleware('supply.permission:materials.recycle-bin.delete')
+            ->name('materials.force-delete');
+        Route::post('/materials/bulk/restore', [
             MaterialRecycleBinDonorController::class,
-            "bulkRestore",
+            'bulkRestore',
         ])
-            ->middleware("supply.permission:materials.recycle-bin.restore")
-            ->name("materials.bulk-restore");
-        Route::post("/materials/bulk/force-delete", [
+            ->middleware('supply.permission:materials.recycle-bin.restore')
+            ->name('materials.bulk-restore');
+        Route::post('/materials/bulk/force-delete', [
             MaterialRecycleBinDonorController::class,
-            "bulkForceDelete",
+            'bulkForceDelete',
         ])
-            ->middleware("supply.permission:materials.recycle-bin.delete")
-            ->name("materials.bulk-force-delete");
+            ->middleware('supply.permission:materials.recycle-bin.delete')
+            ->name('materials.bulk-force-delete');
 
         foreach (
             [
-                "bricks",
-                "cements",
-                "nats",
-                "sands",
-                "cats",
-                "ceramics",
-                "steels",
-                "kasa_gypsums",
-                "paku_tembaks",
-                "pakus",
-            ]
-            as $resource
+                'bricks',
+                'cements',
+                'nats',
+                'sands',
+                'cats',
+                'ceramics',
+                'steels',
+                'kasa_gypsums',
+                'paku_tembaks',
+                'pakus',
+            ] as $resource
         ) {
             Route::get("/{$resource}/create", [
                 MaterialDonorController::class,
-                "create",
+                'create',
             ])
-                ->middleware("supply.permission:materials.create")
-                ->defaults("resource", $resource)
+                ->middleware('supply.permission:materials.create')
+                ->defaults('resource', $resource)
                 ->name("{$resource}.create");
             Route::post("/{$resource}", [
                 MaterialDonorController::class,
-                "store",
+                'store',
             ])
-                ->middleware("supply.permission:materials.create")
-                ->defaults("resource", $resource)
+                ->middleware('supply.permission:materials.create')
+                ->defaults('resource', $resource)
                 ->name("{$resource}.store");
             Route::get("/{$resource}/{id}", [
                 MaterialDonorController::class,
-                "show",
+                'show',
             ])
-                ->middleware("supply.permission:materials.view")
-                ->defaults("resource", $resource)
+                ->middleware('supply.permission:materials.view')
+                ->defaults('resource', $resource)
                 ->name("{$resource}.show");
             Route::get("/{$resource}/{id}/edit", [
                 MaterialDonorController::class,
-                "edit",
+                'edit',
             ])
-                ->middleware("supply.permission:materials.update")
-                ->defaults("resource", $resource)
+                ->middleware('supply.permission:materials.update')
+                ->defaults('resource', $resource)
                 ->name("{$resource}.edit");
-            Route::match(["put", "patch"], "/{$resource}/{id}", [
+            Route::match(['put', 'patch'], "/{$resource}/{id}", [
                 MaterialDonorController::class,
-                "update",
+                'update',
             ])
-                ->middleware("supply.permission:materials.update")
-                ->defaults("resource", $resource)
+                ->middleware('supply.permission:materials.update')
+                ->defaults('resource', $resource)
                 ->name("{$resource}.update");
             Route::post("/{$resource}/{id}/history/{historyLog}/restore", [
                 MaterialDonorController::class,
-                "restoreHistory",
+                'restoreHistory',
             ])
-                ->middleware("supply.permission:materials.update")
-                ->defaults("resource", $resource)
+                ->middleware('supply.permission:materials.update')
+                ->defaults('resource', $resource)
                 ->name("{$resource}.history.restore");
 
             Route::get("/api/{$resource}/field-values/{field}", [
                 MaterialDonorController::class,
-                "fieldValues",
+                'fieldValues',
             ])
-                ->middleware("supply.permission:materials.view")
-                ->defaults("resource", $resource)
+                ->middleware('supply.permission:materials.view')
+                ->defaults('resource', $resource)
                 ->name("{$resource}.field-values");
             Route::delete("/api/v1/{$resource}/{id}", [
                 MaterialDonorController::class,
-                "destroy",
+                'destroy',
             ])
-                ->middleware("supply.permission:materials.delete")
-                ->defaults("resource", $resource)
+                ->middleware('supply.permission:materials.delete')
+                ->defaults('resource', $resource)
                 ->name("{$resource}.api-destroy");
             Route::get("/api/{$resource}/all-stores", [
                 MaterialDonorController::class,
-                "allStores",
+                'allStores',
             ])
-                ->middleware("supply.permission:materials.view")
-                ->defaults("resource", $resource)
+                ->middleware('supply.permission:materials.view')
+                ->defaults('resource', $resource)
                 ->name("{$resource}.all-stores");
             Route::get("/api/{$resource}/addresses-by-store", [
                 MaterialDonorController::class,
-                "addressesByStore",
+                'addressesByStore',
             ])
-                ->middleware("supply.permission:materials.view")
-                ->defaults("resource", $resource)
+                ->middleware('supply.permission:materials.view')
+                ->defaults('resource', $resource)
                 ->name("{$resource}.addresses-by-store");
         }
 
-        Route::get("/api/stores/all-stores", [
+        Route::get('/api/stores/all-stores', [
             MaterialDonorController::class,
-            "allStores",
+            'allStores',
         ])
-            ->middleware("supply.permission:materials.view")
-            ->name("stores.all-stores");
-        Route::get("/api/stores/addresses-by-store", [
+            ->middleware('supply.permission:materials.view')
+            ->name('stores.all-stores');
+        Route::get('/api/stores/addresses-by-store', [
             MaterialDonorController::class,
-            "addressesByStore",
+            'addressesByStore',
         ])
-            ->middleware("supply.permission:materials.view")
-            ->name("stores.addresses-by-store");
-        Route::get("/api/stores/locations-by-store", [
+            ->middleware('supply.permission:materials.view')
+            ->name('stores.addresses-by-store');
+        Route::get('/api/stores/locations-by-store', [
             MaterialDonorController::class,
-            "locationsByStore",
+            'locationsByStore',
         ])
-            ->middleware("supply.permission:materials.view")
-            ->name("stores.locations-by-store");
-        Route::post("/api/stores/quick-create", [
+            ->middleware('supply.permission:materials.view')
+            ->name('stores.locations-by-store');
+        Route::post('/api/stores/quick-create', [
             MaterialDonorController::class,
-            "quickCreateStoreLocation",
+            'quickCreateStoreLocation',
         ])
-            ->middleware("supply.permission:materials.view")
-            ->name("stores.quick-create");
+            ->middleware('supply.permission:materials.view')
+            ->name('stores.quick-create');
 
-        Route::get("/stores", [StoreDonorController::class, "index"])
-            ->middleware("supply.permission:stores.view")
-            ->name("stores.index");
-        Route::get("/stores/chunk", [StoreDonorController::class, "fetchChunk"])
-            ->middleware("supply.permission:stores.view")
-            ->name("stores.chunk");
-        Route::get("/stores/create", [StoreDonorController::class, "create"])
-            ->middleware("supply.permission:stores.create")
-            ->name("stores.create");
-        Route::post("/stores", [StoreDonorController::class, "store"])
-            ->middleware("supply.permission:stores.create")
-            ->name("stores.store");
-        Route::get("/stores/{store}", [StoreDonorController::class, "show"])
-            ->middleware("supply.permission:stores.view")
-            ->name("stores.show");
-        Route::get("/stores/{store}/edit", [
+        Route::get('/stores', [StoreDonorController::class, 'index'])
+            ->middleware('supply.permission:stores.view')
+            ->name('stores.index');
+        Route::get('/stores/chunk', [StoreDonorController::class, 'fetchChunk'])
+            ->middleware('supply.permission:stores.view')
+            ->name('stores.chunk');
+        Route::get('/stores/create', [StoreDonorController::class, 'create'])
+            ->middleware('supply.permission:stores.create')
+            ->name('stores.create');
+        Route::post('/stores', [StoreDonorController::class, 'store'])
+            ->middleware('supply.permission:stores.create')
+            ->name('stores.store');
+        Route::get('/stores/{store}', [StoreDonorController::class, 'show'])
+            ->middleware('supply.permission:stores.view')
+            ->name('stores.show');
+        Route::get('/stores/{store}/edit', [
             StoreDonorController::class,
-            "edit",
+            'edit',
         ])
-            ->middleware("supply.permission:stores.update")
-            ->name("stores.edit");
-        Route::put("/stores/{store}", [StoreDonorController::class, "update"])
-            ->middleware("supply.permission:stores.update")
-            ->name("stores.update");
-        Route::delete("/stores/{store}", [
+            ->middleware('supply.permission:stores.update')
+            ->name('stores.edit');
+        Route::put('/stores/{store}', [StoreDonorController::class, 'update'])
+            ->middleware('supply.permission:stores.update')
+            ->name('stores.update');
+        Route::delete('/stores/{store}', [
             StoreDonorController::class,
-            "destroy",
+            'destroy',
         ])
-            ->middleware("supply.permission:stores.delete")
-            ->name("stores.destroy");
+            ->middleware('supply.permission:stores.delete')
+            ->name('stores.destroy');
 
-        Route::get("/stores/{store}/locations/create", [
+        Route::get('/stores/{store}/locations/create', [
             StoreLocationDonorController::class,
-            "create",
+            'create',
         ])
-            ->middleware("supply.permission:stores.create")
-            ->name("store-locations.create");
-        Route::post("/stores/{store}/locations", [
+            ->middleware('supply.permission:stores.create')
+            ->name('store-locations.create');
+        Route::post('/stores/{store}/locations', [
             StoreLocationDonorController::class,
-            "store",
+            'store',
         ])
-            ->middleware("supply.permission:stores.create")
-            ->name("store-locations.store");
-        Route::get("/stores/{store}/locations/{location}/edit", [
+            ->middleware('supply.permission:stores.create')
+            ->name('store-locations.store');
+        Route::get('/stores/{store}/locations/{location}/edit', [
             StoreLocationDonorController::class,
-            "edit",
+            'edit',
         ])
-            ->middleware("supply.permission:stores.update")
-            ->name("store-locations.edit");
-        Route::put("/stores/{store}/locations/{location}", [
+            ->middleware('supply.permission:stores.update')
+            ->name('store-locations.edit');
+        Route::put('/stores/{store}/locations/{location}', [
             StoreLocationDonorController::class,
-            "update",
+            'update',
         ])
-            ->middleware("supply.permission:stores.update")
-            ->name("store-locations.update");
-        Route::delete("/stores/{store}/locations/{location}", [
+            ->middleware('supply.permission:stores.update')
+            ->name('store-locations.update');
+        Route::delete('/stores/{store}/locations/{location}', [
             StoreLocationDonorController::class,
-            "destroy",
+            'destroy',
         ])
-            ->middleware("supply.permission:stores.delete")
-            ->name("store-locations.destroy");
-        Route::get("/stores/{store}/locations/{location}/materials", [
+            ->middleware('supply.permission:stores.delete')
+            ->name('store-locations.destroy');
+        Route::get('/stores/{store}/locations/{location}/materials', [
             StoreLocationDonorController::class,
-            "materials",
+            'materials',
         ])
-            ->middleware("supply.permission:stores.view")
-            ->name("store-locations.materials");
+            ->middleware('supply.permission:stores.view')
+            ->name('store-locations.materials');
 
-        Route::get("/settings/store-search-radius", [
+        Route::get('/settings/store-search-radius', [
             StoreSearchRadiusSettingController::class,
-            "index",
+            'index',
         ])
-            ->middleware("supply.permission:store-search-radius.view")
-            ->name("settings.store-search-radius.index");
-        Route::post("/settings/store-search-radius", [
+            ->middleware('supply.permission:store-search-radius.view')
+            ->name('settings.store-search-radius.index');
+        Route::post('/settings/store-search-radius', [
             StoreSearchRadiusSettingController::class,
-            "store",
+            'store',
         ])
-            ->middleware("supply.permission:store-search-radius.update")
-            ->name("settings.store-search-radius.store");
+            ->middleware('supply.permission:store-search-radius.update')
+            ->name('settings.store-search-radius.store');
 
-        Route::get("/units", [UnitManagementController::class, "index"])
-            ->middleware("supply.permission:units.view")
-            ->name("units.index");
-        Route::get("/units/create", [UnitManagementController::class, "create"])
-            ->middleware("supply.permission:units.create")
-            ->name("units.create");
-        Route::post("/units", [UnitManagementController::class, "store"])
-            ->middleware("supply.permission:units.create")
-            ->name("units.store");
-        Route::get("/units/{id}/edit", [
+        Route::get('/units', [UnitManagementController::class, 'index'])
+            ->middleware('supply.permission:units.view')
+            ->name('units.index');
+        Route::get('/units/create', [UnitManagementController::class, 'create'])
+            ->middleware('supply.permission:units.create')
+            ->name('units.create');
+        Route::post('/units', [UnitManagementController::class, 'store'])
+            ->middleware('supply.permission:units.create')
+            ->name('units.store');
+        Route::get('/units/{id}/edit', [
             UnitManagementController::class,
-            "edit",
+            'edit',
         ])
-            ->middleware("supply.permission:units.update")
-            ->name("units.edit");
-        Route::put("/units/{id}", [UnitManagementController::class, "update"])
-            ->middleware("supply.permission:units.update")
-            ->name("units.update");
-        Route::delete("/units/{id}", [
+            ->middleware('supply.permission:units.update')
+            ->name('units.edit');
+        Route::put('/units/{id}', [UnitManagementController::class, 'update'])
+            ->middleware('supply.permission:units.update')
+            ->name('units.update');
+        Route::delete('/units/{id}', [
             UnitManagementController::class,
-            "destroy",
+            'destroy',
         ])
-            ->middleware("supply.permission:units.delete")
-            ->name("units.destroy");
+            ->middleware('supply.permission:units.delete')
+            ->name('units.destroy');
     },
 );
