@@ -2,6 +2,9 @@ name: Supply Service FE CI
 
 on:
   pull_request:
+    branches:
+      - main
+      - staging
   push:
     branches:
       - main
@@ -17,9 +20,57 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  resolve_target:
+    name: Resolve Runner And Deploy Target
+    runs-on: ubuntu-latest
+
+    outputs:
+      target_branch: ${{ steps.resolve.outputs.target_branch }}
+      runner: ${{ steps.resolve.outputs.runner }}
+      deploy_environment: ${{ steps.resolve.outputs.deploy_environment }}
+      compose_file: ${{ steps.resolve.outputs.compose_file }}
+      app_service_prefix: ${{ steps.resolve.outputs.app_service_prefix }}
+      deploy_enabled: ${{ steps.resolve.outputs.deploy_enabled }}
+
+    steps:
+      - name: Resolve branch target
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TARGET_BRANCH="${GITHUB_BASE_REF:-${GITHUB_REF_NAME}}"
+
+          echo "target_branch=$TARGET_BRANCH" >> "$GITHUB_OUTPUT"
+
+          case "$TARGET_BRANCH" in
+            main)
+              echo 'runner=["self-hosted","prod"]' >> "$GITHUB_OUTPUT"
+              echo "deploy_environment=production" >> "$GITHUB_OUTPUT"
+              echo "compose_file=compose.production.yml" >> "$GITHUB_OUTPUT"
+              echo "app_service_prefix=app" >> "$GITHUB_OUTPUT"
+              echo "deploy_enabled=true" >> "$GITHUB_OUTPUT"
+              ;;
+            staging)
+              echo 'runner=["self-hosted","staging"]' >> "$GITHUB_OUTPUT"
+              echo "deploy_environment=staging" >> "$GITHUB_OUTPUT"
+              echo "compose_file=compose.staging.yml" >> "$GITHUB_OUTPUT"
+              echo "app_service_prefix=app_staging" >> "$GITHUB_OUTPUT"
+              echo "deploy_enabled=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo 'runner=["self-hosted","staging"]' >> "$GITHUB_OUTPUT"
+              echo "deploy_environment=staging" >> "$GITHUB_OUTPUT"
+              echo "compose_file=compose.staging.yml" >> "$GITHUB_OUTPUT"
+              echo "app_service_prefix=app_staging" >> "$GITHUB_OUTPUT"
+              echo "deploy_enabled=false" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
   quality:
     name: Quality
-    runs-on: [self-hosted, staging]
+    needs: resolve_target
+    runs-on: ${{ fromJSON(needs.resolve_target.outputs.runner) }}
 
     permissions:
       contents: read
@@ -87,8 +138,10 @@ jobs:
 
   test_build:
     name: Test And Build
-    runs-on: [self-hosted, staging]
-    needs: quality
+    needs:
+      - resolve_target
+      - quality
+    runs-on: ${{ fromJSON(needs.resolve_target.outputs.runner) }}
 
     permissions:
       contents: read
@@ -147,3 +200,118 @@ jobs:
           QUEUE_CONNECTION: sync
           SESSION_DRIVER: array
         run: php artisan test --without-tty
+
+  deploy:
+    name: Deploy Blue-Green
+    needs:
+      - resolve_target
+      - test_build
+    if: github.event_name == 'push' && needs.resolve_target.outputs.deploy_enabled == 'true'
+    runs-on: ${{ fromJSON(needs.resolve_target.outputs.runner) }}
+    environment: ${{ needs.resolve_target.outputs.deploy_environment }}
+
+    permissions:
+      contents: read
+
+    env:
+      COMPOSE_FILE: ${{ needs.resolve_target.outputs.compose_file }}
+      APP_SERVICE_PREFIX: ${{ needs.resolve_target.outputs.app_service_prefix }}
+      CURRENT_COLOR_FILE: ${{ github.workspace }}/.deploy/${{ needs.resolve_target.outputs.deploy_environment }}_current_color
+      NGINX_CONFIG_FILE: ${{ vars.SUPPLY_FE_NGINX_CONFIG_FILE }}
+      NGINX_CONTAINER: ${{ vars.SUPPLY_FE_NGINX_CONTAINER }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: false
+          fetch-depth: 0
+
+      - name: Validate deploy configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$(dirname "$CURRENT_COLOR_FILE")"
+
+          if [ ! -f "$COMPOSE_FILE" ]; then
+            echo "Compose file not found: $COMPOSE_FILE" >&2
+            exit 1
+          fi
+
+          if [ ! -f .env ]; then
+            echo "Expected deploy .env file at repo root on runner workspace." >&2
+            exit 1
+          fi
+
+          if [ -z "${NGINX_CONFIG_FILE:-}" ]; then
+            echo "Missing environment variable SUPPLY_FE_NGINX_CONFIG_FILE." >&2
+            exit 1
+          fi
+
+          if [ ! -f "$NGINX_CONFIG_FILE" ]; then
+            echo "Nginx config file not found: $NGINX_CONFIG_FILE" >&2
+            exit 1
+          fi
+
+      - name: Deploy locally on runner
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          NGINX_CONTAINER="${NGINX_CONTAINER:-nginx_utama}"
+          CURRENT="$(cat "$CURRENT_COLOR_FILE" 2>/dev/null || echo "blue")"
+
+          if [ "$CURRENT" = "blue" ]; then
+            TARGET="green"
+            OLD="blue"
+          else
+            TARGET="blue"
+            OLD="green"
+          fi
+
+          TARGET_SERVICE="${APP_SERVICE_PREFIX}_${TARGET}"
+          OLD_SERVICE="${APP_SERVICE_PREFIX}_${OLD}"
+
+          echo "Current color: $CURRENT"
+          echo "Deploying to service: $TARGET_SERVICE"
+
+          echo "===> Build target"
+          docker compose -f "$COMPOSE_FILE" build "$TARGET_SERVICE"
+
+          echo "===> Start target"
+          docker compose -f "$COMPOSE_FILE" up -d --no-deps "$TARGET_SERVICE"
+
+          echo "===> Wait for PHP-FPM"
+          sleep 10
+
+          echo "===> Validate target container"
+          CONTAINER_ID="$(docker compose -f "$COMPOSE_FILE" ps -q "$TARGET_SERVICE")"
+          if [ -z "$CONTAINER_ID" ]; then
+            echo "Container ID for $TARGET_SERVICE not found." >&2
+            exit 1
+          fi
+
+          docker ps --filter "id=$CONTAINER_ID" --filter "status=running" | grep "$CONTAINER_ID" >/dev/null
+
+          echo "===> Run migrations"
+          docker compose -f "$COMPOSE_FILE" exec -T "$TARGET_SERVICE" php artisan migrate --force
+
+          echo "===> Sync built assets to workspace"
+          rm -rf public/build
+          docker cp "$CONTAINER_ID:/var/www/html/public/build" public/
+
+          echo "===> Switch nginx upstream"
+          sed -i -E "s|server ${APP_SERVICE_PREFIX}_(blue|green):9000;|server ${TARGET_SERVICE}:9000;|" "$NGINX_CONFIG_FILE"
+
+          echo "===> Reload nginx"
+          docker exec "$NGINX_CONTAINER" nginx -t
+          docker exec "$NGINX_CONTAINER" nginx -s reload
+          echo "$TARGET" > "$CURRENT_COLOR_FILE"
+
+          echo "===> Rebuild queue and scheduler"
+          docker compose -f "$COMPOSE_FILE" build queue scheduler
+          docker compose -f "$COMPOSE_FILE" up -d --no-deps --force-recreate queue scheduler
+
+          echo "===> Stop old app"
+          docker compose -f "$COMPOSE_FILE" stop "$OLD_SERVICE" || true
