@@ -23,6 +23,9 @@ jobs:
   resolve_target:
     name: Resolve Runner And Deploy Target
     runs-on: ubuntu-latest
+    env:
+      STAGING_DEPLOY_DIR: ${{ vars.SUPPLY_FE_STAGING_DEPLOY_DIR }}
+      STAGING_NGINX_CONFIG_FILE: ${{ vars.SUPPLY_FE_STAGING_NGINX_CONFIG_FILE }}
 
     outputs:
       target_branch: ${{ steps.resolve.outputs.target_branch }}
@@ -30,6 +33,8 @@ jobs:
       deploy_environment: ${{ steps.resolve.outputs.deploy_environment }}
       compose_file: ${{ steps.resolve.outputs.compose_file }}
       app_service_prefix: ${{ steps.resolve.outputs.app_service_prefix }}
+      deploy_dir: ${{ steps.resolve.outputs.deploy_dir }}
+      nginx_config_file: ${{ steps.resolve.outputs.nginx_config_file }}
       deploy_enabled: ${{ steps.resolve.outputs.deploy_enabled }}
 
     steps:
@@ -49,6 +54,8 @@ jobs:
               echo "deploy_environment=production" >> "$GITHUB_OUTPUT"
               echo "compose_file=compose.production.yml" >> "$GITHUB_OUTPUT"
               echo "app_service_prefix=app" >> "$GITHUB_OUTPUT"
+              echo "deploy_dir=/home/a/dck/supply-service/frontend" >> "$GITHUB_OUTPUT"
+              echo "nginx_config_file=/home/a/dck/nginx-config/supplyfe.conf" >> "$GITHUB_OUTPUT"
               echo "deploy_enabled=true" >> "$GITHUB_OUTPUT"
               ;;
             staging)
@@ -56,13 +63,21 @@ jobs:
               echo "deploy_environment=staging" >> "$GITHUB_OUTPUT"
               echo "compose_file=compose.staging.yml" >> "$GITHUB_OUTPUT"
               echo "app_service_prefix=app_staging" >> "$GITHUB_OUTPUT"
-              echo "deploy_enabled=true" >> "$GITHUB_OUTPUT"
+              echo "deploy_dir=${STAGING_DEPLOY_DIR}" >> "$GITHUB_OUTPUT"
+              echo "nginx_config_file=${STAGING_NGINX_CONFIG_FILE}" >> "$GITHUB_OUTPUT"
+              if [ -n "${STAGING_DEPLOY_DIR:-}" ] && [ -n "${STAGING_NGINX_CONFIG_FILE:-}" ]; then
+                echo "deploy_enabled=true" >> "$GITHUB_OUTPUT"
+              else
+                echo "deploy_enabled=false" >> "$GITHUB_OUTPUT"
+              fi
               ;;
             *)
               echo 'runner=["self-hosted","staging"]' >> "$GITHUB_OUTPUT"
               echo "deploy_environment=staging" >> "$GITHUB_OUTPUT"
               echo "compose_file=compose.staging.yml" >> "$GITHUB_OUTPUT"
               echo "app_service_prefix=app_staging" >> "$GITHUB_OUTPUT"
+              echo "deploy_dir=" >> "$GITHUB_OUTPUT"
+              echo "nginx_config_file=" >> "$GITHUB_OUTPUT"
               echo "deploy_enabled=false" >> "$GITHUB_OUTPUT"
               ;;
           esac
@@ -216,31 +231,41 @@ jobs:
     env:
       COMPOSE_FILE: ${{ needs.resolve_target.outputs.compose_file }}
       APP_SERVICE_PREFIX: ${{ needs.resolve_target.outputs.app_service_prefix }}
-      CURRENT_COLOR_FILE: ${{ github.workspace }}/.deploy/${{ needs.resolve_target.outputs.deploy_environment }}_current_color
-      NGINX_CONFIG_FILE: ${{ vars.SUPPLY_FE_NGINX_CONFIG_FILE }}
+      DEPLOY_DIR: ${{ needs.resolve_target.outputs.deploy_dir }}
+      CURRENT_COLOR_FILE: ${{ needs.resolve_target.outputs.deploy_dir }}/.deploy/current_color
+      NGINX_CONFIG_FILE: ${{ needs.resolve_target.outputs.nginx_config_file }}
       NGINX_CONTAINER: ${{ vars.SUPPLY_FE_NGINX_CONTAINER }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          clean: false
-          fetch-depth: 0
-
       - name: Validate deploy configuration
         shell: bash
         run: |
           set -euo pipefail
 
-          mkdir -p "$(dirname "$CURRENT_COLOR_FILE")"
-
-          if [ ! -f "$COMPOSE_FILE" ]; then
-            echo "Compose file not found: $COMPOSE_FILE" >&2
+          if [ -z "${DEPLOY_DIR:-}" ]; then
+            echo "Missing deploy directory." >&2
             exit 1
           fi
 
-          if [ ! -f .env ]; then
-            echo "Expected deploy .env file at repo root on runner workspace." >&2
+          if [ ! -d "$DEPLOY_DIR" ]; then
+            echo "Deploy directory not found: $DEPLOY_DIR" >&2
+            exit 1
+          fi
+
+          if [ ! -d "$DEPLOY_DIR/.git" ]; then
+            echo "Deploy directory is not a git checkout: $DEPLOY_DIR" >&2
+            exit 1
+          fi
+
+          mkdir -p "$(dirname "$CURRENT_COLOR_FILE")"
+
+          if [ ! -f "$DEPLOY_DIR/$COMPOSE_FILE" ]; then
+            echo "Compose file not found: $DEPLOY_DIR/$COMPOSE_FILE" >&2
+            exit 1
+          fi
+
+          if [ ! -f "$DEPLOY_DIR/.env" ]; then
+            echo "Expected deploy .env file in $DEPLOY_DIR." >&2
             exit 1
           fi
 
@@ -260,6 +285,14 @@ jobs:
           set -euo pipefail
 
           NGINX_CONTAINER="${NGINX_CONTAINER:-nginx_utama}"
+          TARGET_BRANCH="${{ needs.resolve_target.outputs.target_branch }}"
+
+          echo "===> Sync code"
+          cd "$DEPLOY_DIR"
+          git fetch origin
+          git checkout "$TARGET_BRANCH"
+          git reset --hard "origin/$TARGET_BRANCH"
+
           CURRENT="$(cat "$CURRENT_COLOR_FILE" 2>/dev/null || echo "blue")"
 
           if [ "$CURRENT" = "blue" ]; then
@@ -298,8 +331,8 @@ jobs:
           docker compose -f "$COMPOSE_FILE" exec -T "$TARGET_SERVICE" php artisan migrate --force
 
           echo "===> Sync built assets to workspace"
-          rm -rf public/build
-          docker cp "$CONTAINER_ID:/var/www/html/public/build" public/
+          rm -rf "$DEPLOY_DIR/public/build"
+          docker cp "$CONTAINER_ID:/var/www/html/public/build" "$DEPLOY_DIR/public/"
 
           echo "===> Switch nginx upstream"
           sed -i -E "s|server ${APP_SERVICE_PREFIX}_(blue|green):9000;|server ${TARGET_SERVICE}:9000;|" "$NGINX_CONFIG_FILE"
