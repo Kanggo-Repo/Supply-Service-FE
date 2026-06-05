@@ -326,7 +326,30 @@ jobs:
             exit 1
           fi
 
-          docker ps --filter "id=$CONTAINER_ID" --filter "status=running" | grep "$CONTAINER_ID" >/dev/null
+          ATTEMPTS=0
+          until [ "$ATTEMPTS" -ge 6 ]; do
+            STATUS="$(docker inspect -f '{{.State.Status}}' "$CONTAINER_ID" 2>/dev/null || true)"
+
+            if [ "$STATUS" = "running" ]; then
+              break
+            fi
+
+            if [ "$STATUS" = "exited" ] || [ "$STATUS" = "dead" ]; then
+              echo "Container $TARGET_SERVICE failed with status: $STATUS" >&2
+              docker logs "$CONTAINER_ID" || true
+              exit 1
+            fi
+
+            ATTEMPTS=$((ATTEMPTS + 1))
+            sleep 5
+          done
+
+          STATUS="$(docker inspect -f '{{.State.Status}}' "$CONTAINER_ID" 2>/dev/null || true)"
+          if [ "$STATUS" != "running" ]; then
+            echo "Container $TARGET_SERVICE did not reach running state. Final status: ${STATUS:-unknown}" >&2
+            docker logs "$CONTAINER_ID" || true
+            exit 1
+          fi
 
           echo "===> Run migrations"
           docker compose -f "$COMPOSE_FILE" exec -T "$TARGET_SERVICE" php artisan migrate --force
