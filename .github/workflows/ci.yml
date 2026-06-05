@@ -372,7 +372,8 @@ jobs:
           docker cp "$CONTAINER_ID:/var/www/html/public/build" "$DEPLOY_DIR/public/"
 
           echo "===> Switch nginx upstream"
-          sed -i -E "s|server ${APP_SERVICE_PREFIX}_(blue|green):9000;|server ${TARGET_SERVICE}:9000;|" "$NGINX_CONFIG_FILE"
+          sed -i "s|server ${APP_SERVICE_PREFIX}_blue:9000;|server ${TARGET_SERVICE}:9000;|g" "$NGINX_CONFIG_FILE"
+          sed -i "s|server ${APP_SERVICE_PREFIX}_green:9000;|server ${TARGET_SERVICE}:9000;|g" "$NGINX_CONFIG_FILE"
 
           echo "===> Reload nginx"
           docker exec "$NGINX_CONTAINER" nginx -t
