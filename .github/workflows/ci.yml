@@ -288,6 +288,7 @@ jobs:
           TARGET_BRANCH="${{ needs.resolve_target.outputs.target_branch }}"
 
           echo "===> Sync code"
+          git config --global --add safe.directory "$DEPLOY_DIR"
           cd "$DEPLOY_DIR"
           git fetch origin
           git checkout "$TARGET_BRANCH"
