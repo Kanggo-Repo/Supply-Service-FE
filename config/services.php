@@ -1,7 +1,6 @@
 <?php
 
 return [
-
     /*
     |--------------------------------------------------------------------------
     | Third Party Services
@@ -14,65 +13,80 @@ return [
     |
     */
 
-    'postmark' => [
-        'key' => env('POSTMARK_API_KEY'),
+    "postmark" => [
+        "key" => env("POSTMARK_API_KEY"),
     ],
 
-    'resend' => [
-        'key' => env('RESEND_API_KEY'),
+    "resend" => [
+        "key" => env("RESEND_API_KEY"),
     ],
 
-    'ses' => [
-        'key' => env('AWS_ACCESS_KEY_ID'),
-        'secret' => env('AWS_SECRET_ACCESS_KEY'),
-        'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
+    "ses" => [
+        "key" => env("AWS_ACCESS_KEY_ID"),
+        "secret" => env("AWS_SECRET_ACCESS_KEY"),
+        "region" => env("AWS_DEFAULT_REGION", "us-east-1"),
     ],
 
-    'slack' => [
-        'notifications' => [
-            'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
-            'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
+    "slack" => [
+        "notifications" => [
+            "bot_user_oauth_token" => env("SLACK_BOT_USER_OAUTH_TOKEN"),
+            "channel" => env("SLACK_BOT_USER_DEFAULT_CHANNEL"),
         ],
     ],
 
-    'supply_service' => [
-        'base_url' => env('SUPPLY_SERVICE_BASE_URL', 'http://127.0.0.1:8000'),
-        'service_name' => env('INTERNAL_CALLER_NAME', 'supply-fe'),
-        'token' => env('INTERNAL_SERVICE_TOKEN', env('SUPPLY_SERVICE_TOKEN')),
-        'verify_ssl' => filter_var(env('SUPPLY_SERVICE_VERIFY_SSL', true), FILTER_VALIDATE_BOOL),
-        'ca_bundle' => env('SUPPLY_SERVICE_CA_BUNDLE'),
+    "supply_service" => [
+        "base_url" => env("SUPPLY_SERVICE_BASE_URL", "http://127.0.0.1:8000"),
+        "service_name" => env("INTERNAL_CALLER_NAME", "supply-fe"),
+        "token" => env("INTERNAL_SERVICE_TOKEN", env("SUPPLY_SERVICE_TOKEN")),
+        "verify_ssl" => filter_var(
+            env("SUPPLY_SERVICE_VERIFY_SSL", true),
+            FILTER_VALIDATE_BOOL,
+        ),
+        "ca_bundle" => env("SUPPLY_SERVICE_CA_BUNDLE"),
     ],
 
-    'platform_service' => [
-        'base_url' => env('PLATFORM_SERVICE_BASE_URL', 'http://127.0.0.1:8020'),
+    "platform_service" => [
+        "base_url" => env("PLATFORM_SERVICE_BASE_URL", "http://127.0.0.1:8020"),
     ],
 
-    'platform_fe' => [
-        'base_url' => env('PLATFORM_FE_BASE_URL'),
+    "platform_fe" => [
+        "base_url" => env("PLATFORM_FE_BASE_URL"),
     ],
 
-    'keycloak' => [
-        'base_url' => env('KEYCLOAK_BASE_URL'),
-        'realm' => env('KEYCLOAK_REALM', 'kanggo'),
-        'client_id' => env('KEYCLOAK_CLIENT_ID', 'supply-fe'),
-        'shared_subject_cookie' => env('KEYCLOAK_SHARED_SUBJECT_COOKIE', 'kanggo_active_subject'),
-        'verify_ssl' => filter_var(env('KEYCLOAK_VERIFY_SSL', true), FILTER_VALIDATE_BOOL),
-        'ca_bundle' => env('KEYCLOAK_CA_BUNDLE'),
+    "keycloak" => [
+        "base_url" => env("KEYCLOAK_BASE_URL"),
+        "internal_base_url" => env("KEYCLOAK_INTERNAL_BASE_URL"),
+        "realm" => env("KEYCLOAK_REALM", "kanggo"),
+        "client_id" => env("KEYCLOAK_CLIENT_ID", "supply-fe"),
+        "shared_subject_cookie" => env(
+            "KEYCLOAK_SHARED_SUBJECT_COOKIE",
+            "kanggo_active_subject",
+        ),
+        "verify_ssl" => filter_var(
+            env("KEYCLOAK_VERIFY_SSL", true),
+            FILTER_VALIDATE_BOOL,
+        ),
+        "ca_bundle" => env("KEYCLOAK_CA_BUNDLE"),
     ],
 
-    'calculation_fe' => [
-        'base_url' => env('CALCULATION_FE_BASE_URL'),
-        'consume_path' => env('CALCULATION_FE_CONSUME_PATH', '/auth/consume'),
+    "calculation_fe" => [
+        "base_url" => env("CALCULATION_FE_BASE_URL"),
+        "consume_path" => env("CALCULATION_FE_CONSUME_PATH", "/auth/consume"),
     ],
 
-    'calculation_service' => [
-        'base_url' => env('CALCULATION_SERVICE_BASE_URL', 'http://127.0.0.1:8000'),
-        'verify_ssl' => filter_var(env('CALCULATION_SERVICE_VERIFY_SSL', false), FILTER_VALIDATE_BOOL),
-        'ca_bundle' => env('CALCULATION_SERVICE_CA_BUNDLE'),
+    "calculation_service" => [
+        "base_url" => env(
+            "CALCULATION_SERVICE_BASE_URL",
+            "http://127.0.0.1:8000",
+        ),
+        "verify_ssl" => filter_var(
+            env("CALCULATION_SERVICE_VERIFY_SSL", false),
+            FILTER_VALIDATE_BOOL,
+        ),
+        "ca_bundle" => env("CALCULATION_SERVICE_CA_BUNDLE"),
     ],
 
-    'google' => [
-        'maps_api_key' => env('GOOGLE_MAPS_API_KEY'),
+    "google" => [
+        "maps_api_key" => env("GOOGLE_MAPS_API_KEY"),
     ],
-
 ];
