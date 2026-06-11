@@ -489,6 +489,91 @@ class MaterialManagementPageTest extends TestCase
         Http::assertSentCount(3);
     }
 
+    public function test_cement_tab_merges_nat_rows_into_semen_listing(): void
+    {
+        $user = User::factory()->create([
+            'permission_snapshot' => ['materials.view'],
+        ]);
+
+        Http::fake([
+            'http://supply-be.test/api/v1/materials/cement*' => Http::response([
+                'data' => [
+                    [
+                        'id' => 1,
+                        'family' => 'cement',
+                        'label' => 'Semen Tiga Roda',
+                        'brand' => 'Tiga Roda',
+                        'type' => 'PCC',
+                    ],
+                ],
+                'current_page' => 1,
+                'per_page' => 1,
+                'total' => 1,
+                'last_page' => 1,
+            ], 200),
+            'http://supply-be.test/api/v1/materials/nat*' => Http::response([
+                'data' => [
+                    [
+                        'id' => 2,
+                        'family' => 'nat',
+                        'label' => 'Nat AM White',
+                        'brand' => 'AM',
+                        'type' => 'Nat',
+                    ],
+                ],
+                'current_page' => 1,
+                'per_page' => 1,
+                'total' => 1,
+                'last_page' => 1,
+            ], 200),
+            'http://supply-be.test/api/v1/units/grouped' => Http::response([
+                'success' => true,
+                'data' => [
+                    'cement' => [],
+                    'nat' => [],
+                ],
+            ], 200),
+            'http://supply-be.test/api/v1/materials/summary' => Http::response([
+                'data' => [
+                    'families' => [
+                        'cement' => 1,
+                        'nat' => 1,
+                    ],
+                    'display_families' => [
+                        'brick' => 0,
+                        'cement' => 2,
+                        'sand' => 0,
+                        'cat' => 0,
+                        'ceramic' => 0,
+                        'steel' => 0,
+                        'kasa_gypsum' => 0,
+                        'paku_tembak' => 0,
+                        'paku' => 0,
+                    ],
+                    'grand_total' => 2,
+                ],
+            ], 200),
+        ]);
+
+        $response = $this->actingAs($user)->get('/materials/tab/cement');
+
+        $response->assertOk();
+        // Both the cement row and the folded-in nat row must be listed under Semen.
+        $response->assertSee('Tiga Roda');
+        $response->assertSee('AM');
+
+        // The nat family must be fetched in full (all=true) so no nat row is hidden.
+        Http::assertSent(function (ClientRequest $request) {
+            if (! str_starts_with($request->url(), 'http://supply-be.test/api/v1/materials/nat')) {
+                return false;
+            }
+
+            parse_str(parse_url($request->url(), PHP_URL_QUERY) ?? '', $query);
+
+            return ($query['all'] ?? null) === '1';
+        });
+    }
+
     public function test_materials_index_shows_empty_search_message_when_active_tab_has_no_results(): void
     {
         $user = User::factory()->create([

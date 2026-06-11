@@ -391,14 +391,75 @@ class MaterialManagementController extends Controller
      */
     private function getDisplayMaterialPayload(string $type, Request $request): array
     {
-        return $this->supplyServiceClient->listMaterials($type, [
-            'page' => max(1, (int) $request->query('page', 1)),
-            'perPage' => self::MATERIAL_TAB_CHUNK_SIZE,
+        $sources = $this->displaySourceFamilies()[$type] ?? [$type];
+        $filters = [
             'search' => $request->query('search'),
             'sortBy' => $this->mapSortField((string) $request->query('sort_by', '')),
             'sortDirection' => $request->query('sort_direction'),
             'letter' => $request->query('letter'),
-        ], $request->user());
+        ];
+        $page = max(1, (int) $request->query('page', 1));
+
+        if (count($sources) <= 1) {
+            return $this->supplyServiceClient->listMaterials($type, array_merge($filters, [
+                'page' => $page,
+                'perPage' => self::MATERIAL_TAB_CHUNK_SIZE,
+            ]), $request->user());
+        }
+
+        return $this->mergeDisplayMaterialPayload($sources, $filters, $page, $request);
+    }
+
+    /**
+     * Merge several supply families (e.g. cement + nat) into one paginated payload so a
+     * folded display tab lists every underlying material, not just the primary family.
+     * Each family is filtered server-side; the merge, sort, and chunking happen here.
+     *
+     * @param  list<string>  $sources
+     * @param  array<string, mixed>  $filters
+     * @return array<string, mixed>
+     */
+    private function mergeDisplayMaterialPayload(array $sources, array $filters, int $page, Request $request): array
+    {
+        $merged = collect($sources)
+            ->flatMap(fn (string $family): array => (array) ($this->supplyServiceClient->listMaterials(
+                $family,
+                array_merge($filters, ['all' => true]),
+                $request->user(),
+            )['data'] ?? []));
+
+        $rows = $this->sortDisplayRows($merged, $filters['sortBy'] ?? null, $filters['sortDirection'] ?? null);
+
+        $perPage = self::MATERIAL_TAB_CHUNK_SIZE;
+        $total = $rows->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $currentPage = min(max(1, $page), $lastPage);
+
+        return [
+            'data' => $rows->slice(($currentPage - 1) * $perPage, $perPage)->values()->all(),
+            'current_page' => $currentPage,
+            'per_page' => $perPage,
+            'total' => $total,
+            'last_page' => $lastPage,
+        ];
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function sortDisplayRows(Collection $rows, ?string $sortBy, ?string $sortDirection): Collection
+    {
+        $field = ($sortBy !== null && $sortBy !== '') ? $sortBy : 'brand';
+        $descending = strtolower((string) $sortDirection) === 'desc';
+
+        return $rows
+            ->sortBy(
+                fn (array $row): string => mb_strtolower(trim((string) ($row[$field] ?? ''))),
+                SORT_NATURAL | SORT_FLAG_CASE,
+                $descending,
+            )
+            ->values();
     }
 
     private function mapSortField(string $sortBy): ?string
