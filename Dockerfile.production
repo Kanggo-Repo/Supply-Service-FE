@@ -1,36 +1,26 @@
 # syntax=docker/dockerfile:1
 
 ARG PHP_VERSION=8.3
-FROM php:${PHP_VERSION}-fpm-alpine AS php-base
+# Pinned by digest (Alpine 3.24, FrankenPHP 1.12, PHP 8.3.31) for reproducible
+# builds — the mutable :php8.3-alpine tag drifted to an Alpine where the -dev
+# build packages were unavailable on the runner. Bump deliberately when upgrading.
+FROM dunglas/frankenphp:php${PHP_VERSION}-alpine@sha256:f6e69d3681ec76b38cd9b4a7c4a3a871d46ec799673d042bf8eecfbec9d01e77 AS php-base
 
 WORKDIR /var/www/html
 
-RUN set -eux; \
-    apk add --no-cache \
+# Robust PHP extension install via the de-facto standard installer: it pulls
+# the right build deps + runtime libs, compiles, and cleans up — avoiding the
+# fragile manual apk build-deps + pecl REST resolution that broke on the runner.
+COPY --from=mlocati/php-extension-installer:2@sha256:24b0e392309d7085c05b3dc2429bf1c0d934b7d07ded31d212367405e4554a84 /usr/bin/install-php-extensions /usr/local/bin/
+
+RUN set -eu; \
+    retry() { n=0; until "$@"; do n=$((n+1)); [ "$n" -ge 6 ] && { echo "FAILED after $n attempts: $*" >&2; return 1; }; echo "attempt $n failed: $*; retrying in 5s" >&2; sleep 5; done; }; \
+    retry apk add --no-cache \
         curl \
-        fcgi \
-        freetype \
-        icu-libs \
-        libjpeg-turbo \
-        libpng \
-        libzip \
         mysql-client \
-        oniguruma \
-        sqlite-libs \
         unzip \
         zip; \
-    apk add --no-cache --virtual .build-deps \
-        $PHPIZE_DEPS \
-        freetype-dev \
-        icu-dev \
-        libjpeg-turbo-dev \
-        libpng-dev \
-        libzip-dev \
-        linux-headers \
-        oniguruma-dev \
-        sqlite-dev; \
-    docker-php-ext-configure gd --with-freetype --with-jpeg; \
-    docker-php-ext-install -j"$(nproc)" \
+    retry install-php-extensions \
         bcmath \
         exif \
         gd \
@@ -40,11 +30,8 @@ RUN set -eux; \
         pcntl \
         pdo_mysql \
         pdo_sqlite \
-        zip; \
-    pecl install redis; \
-    docker-php-ext-enable redis; \
-    apk del .build-deps; \
-    rm -rf /tmp/pear
+        zip \
+        redis
 
 RUN { \
         echo "memory_limit=256M"; \
@@ -69,7 +56,9 @@ FROM php-base AS vendor
 
 COPY composer.json composer.lock ./
 
-RUN composer install \
+RUN set -eu; \
+    retry() { n=0; until "$@"; do n=$((n+1)); [ "$n" -ge 6 ] && return 1; echo "composer retry $n" >&2; sleep 5; done; }; \
+    retry composer install \
     --no-dev \
     --no-interaction \
     --no-progress \
@@ -82,7 +71,9 @@ FROM node:22-alpine AS frontend
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN set -eu; \
+    retry() { n=0; until "$@"; do n=$((n+1)); [ "$n" -ge 6 ] && return 1; echo "npm retry $n" >&2; sleep 5; done; }; \
+    retry npm ci
 
 COPY resources ./resources
 COPY public ./public
@@ -114,6 +105,6 @@ RUN set -eux; \
 
 USER www-data
 
-EXPOSE 9000
+EXPOSE 8000
 
-CMD ["php-fpm", "-F"]
+CMD ["php", "artisan", "octane:start", "--server=frankenphp", "--host=0.0.0.0", "--port=8000", "--workers=auto", "--max-requests=500"]

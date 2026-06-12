@@ -13,17 +13,24 @@ x-service-env: &service_env
   SESSION_DRIVER: ${SESSION_DRIVER:-redis}
   QUEUE_CONNECTION: ${QUEUE_CONNECTION:-redis}
   TELESCOPE_ENABLED: ${TELESCOPE_ENABLED:-false}
+  OCTANE_SERVER: ${OCTANE_SERVER:-frankenphp}
+  # FrankenPHP/Caddy runs as www-data; point its config/data home at an
+  # ephemeral, writable, NON-mounted path so it never writes container-owned
+  # files into the bind-mounted storage volume. TLS terminates at nginx.
+  XDG_CONFIG_HOME: /tmp/caddy
+  XDG_DATA_HOME: /tmp/caddy
 
 services:
   supplyfe_blue:
     build:
       context: ${APP_ROOT:-.}
       dockerfile: Dockerfile.production
+      network: host
       args:
         PHP_VERSION: ${PHP_VERSION:-8.3}
     container_name: supplyfe_blue
     restart: always
-    command: php artisan serve --host=0.0.0.0 --port=8000
+    command: php artisan octane:start --server=frankenphp --host=0.0.0.0 --port=8000 --workers=auto --max-requests=500
     expose:
       - "8000"
     environment:
@@ -59,11 +66,12 @@ services:
     build:
       context: ${APP_ROOT:-.}
       dockerfile: Dockerfile.production
+      network: host
       args:
         PHP_VERSION: ${PHP_VERSION:-8.3}
     container_name: supplyfe_green
     restart: always
-    command: php artisan serve --host=0.0.0.0 --port=8000
+    command: php artisan octane:start --server=frankenphp --host=0.0.0.0 --port=8000 --workers=auto --max-requests=500
     expose:
       - "8000"
     environment:
@@ -99,6 +107,7 @@ services:
     build:
       context: ${APP_ROOT:-.}
       dockerfile: Dockerfile.production
+      network: host
       args:
         PHP_VERSION: ${PHP_VERSION:-8.3}
     container_name: supplyfe_queue
@@ -114,6 +123,8 @@ services:
       - ${APP_ROOT:-.}/storage:/var/www/html/storage
     networks:
       - backend
+    healthcheck:
+      disable: true
     deploy:
       resources:
         limits:
@@ -129,6 +140,7 @@ services:
     build:
       context: ${APP_ROOT:-.}
       dockerfile: Dockerfile.production
+      network: host
       args:
         PHP_VERSION: ${PHP_VERSION:-8.3}
     container_name: supplyfe_scheduler
@@ -143,6 +155,8 @@ services:
       - ${APP_ROOT:-.}/storage:/var/www/html/storage
     networks:
       - backend
+    healthcheck:
+      disable: true
     deploy:
       resources:
         limits:

@@ -8,11 +8,8 @@
 .vscode
 node_modules
 vendor
+storage
 bootstrap/cache/*.php
-storage/logs
-storage/framework/cache/*
-storage/framework/sessions/*
-storage/framework/testing/*
-storage/framework/views/*
+public/build
 .env
 npm-debug.log
