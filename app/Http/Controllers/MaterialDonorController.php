@@ -673,7 +673,39 @@ class MaterialDonorController extends Controller
             $payload[$field] = $value === '' ? null : $this->castNumericIfNeeded($fieldDefinitions, $field, $value);
         }
 
+        if ($family === 'cat') {
+            if (filled($payload['volume'] ?? null) && blank($payload['volume_unit'] ?? null)) {
+                $payload['volume_unit'] = 'L';
+            }
+
+            if (blank($payload['cat_name'] ?? null)) {
+                $catName = $this->composeCatName($payload);
+
+                if ($catName !== '') {
+                    $payload['cat_name'] = $catName;
+                }
+            }
+        }
+
         return $payload;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function composeCatName(array $payload): string
+    {
+        $parts = collect(['type', 'brand', 'sub_brand', 'color_name'])
+            ->map(fn (string $field): string => trim((string) ($payload[$field] ?? '')))
+            ->filter()
+            ->values()
+            ->all();
+
+        if (filled($payload['volume'] ?? null)) {
+            $parts[] = trim((string) $payload['volume']).trim((string) ($payload['volume_unit'] ?? ''));
+        }
+
+        return trim((string) preg_replace('/\s+/', ' ', implode(' ', $parts)));
     }
 
     /**

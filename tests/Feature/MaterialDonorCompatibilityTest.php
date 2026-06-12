@@ -313,4 +313,43 @@ class MaterialDonorCompatibilityTest extends TestCase
                 && data_get($request->data(), 'package_weight_net') === 40.5;
         });
     }
+
+    public function test_inline_cat_store_composes_required_name_and_volume_unit_before_forwarding(): void
+    {
+        $user = User::factory()->create([
+            'permission_snapshot' => ['materials.create'],
+            'auth_provider' => 'monolith',
+            'auth_subject' => 'monolith:44',
+        ]);
+
+        Http::fake([
+            'http://supply-be.test/api/v1/materials/cat' => Http::response([
+                'message' => 'Material created successfully',
+                'data' => [
+                    'id' => 89,
+                    'family' => 'cat',
+                    'cat_name' => 'Interior Avian Supersilk Putih 5L',
+                ],
+            ], 201),
+        ]);
+
+        $response = $this->actingAs($user)->postJson('/cats', [
+            'type' => 'Interior',
+            'brand' => 'Avian',
+            'sub_brand' => 'Supersilk',
+            'color_name' => 'Putih',
+            'volume' => '5',
+            'purchase_price' => '125.000',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('success', true);
+
+        Http::assertSent(function (ClientRequest $request) {
+            return $request->url() === 'http://supply-be.test/api/v1/materials/cat'
+                && data_get($request->data(), 'cat_name') === 'Interior Avian Supersilk Putih 5L'
+                && data_get($request->data(), 'volume_unit') === 'L'
+                && data_get($request->data(), 'purchase_price') === 125000.0;
+        });
+    }
 }
