@@ -10,6 +10,12 @@ class NumberHelper
 
     private const FIXED_DECIMALS = 2;
 
+    /**
+     * Standar akurasi internal: 11 digit desimal. Dipakai untuk semua
+     * perhitungan presisi tinggi (mis. volume m3) agar konsisten lintas service.
+     */
+    public const ACCURACY_DECIMALS = 11;
+
     private static function resolveDecimals(?int $decimals, int $fallback): int
     {
         return max(0, $decimals ?? $fallback);
@@ -38,6 +44,10 @@ class NumberHelper
         return $formatted;
     }
 
+    /**
+     * Format angka untuk tampilan umum.
+     * Default: 2 desimal, nol di belakang disembunyikan.
+     */
     public static function format(
         mixed $number,
         ?int $decimals = null,
@@ -49,6 +59,10 @@ class NumberHelper
         return self::formatPlain($number, $decimals, $decimalSeparator, $thousandsSeparator);
     }
 
+    /**
+     * Format angka untuk hasil perhitungan (lebih detail).
+     * Default: 6 desimal, nol di belakang disembunyikan.
+     */
     public static function formatResult(
         mixed $number,
         ?int $decimals = null,
@@ -60,6 +74,10 @@ class NumberHelper
         return self::formatPlain($number, $decimals, $decimalSeparator, $thousandsSeparator);
     }
 
+    /**
+     * Format angka dengan behavior lama (number_format + trim nol).
+     * Cocok untuk currency/angka yang tidak butuh presisi panjang.
+     */
     public static function formatFixed(
         mixed $number,
         ?int $decimals = null,
@@ -72,6 +90,10 @@ class NumberHelper
         return self::formatNumber($parsed, $decimals, $decimalSeparator, $thousandsSeparator);
     }
 
+    /**
+     * Format angka tanpa notasi ilmiah, menjaga presisi float.
+     * Default: desimal titik, tanpa pemisah ribuan.
+     */
     public static function formatPlain(
         mixed $number,
         int $maxDecimals = 11,
@@ -97,7 +119,6 @@ class NumberHelper
 
                 continue;
             }
-
             break;
         }
 
@@ -133,6 +154,10 @@ class NumberHelper
         return $formatted;
     }
 
+    /**
+     * Normalisasi angka sederhana (cast/round).
+     * Dipertahankan untuk kebutuhan API, bukan untuk perhitungan internal.
+     */
     public static function normalize(?float $number, ?int $decimals = null): float
     {
         if ($number === null || ! is_finite($number)) {
@@ -146,6 +171,25 @@ class NumberHelper
         return (float) round($number, max(0, $decimals));
     }
 
+    /**
+     * Bulatkan angka ke standar akurasi (default 11 desimal) lalu kembalikan float.
+     * Menerima string/angka berformat Indonesia maupun US, dan mengembalikan 0.0
+     * untuk nilai null/invalid. Inilah satu-satunya sumber pembulatan presisi
+     * tinggi—panggil ini alih-alih menulis round($x, 11) di banyak tempat.
+     */
+    public static function accurate(mixed $value, ?int $decimals = null): float
+    {
+        $parsed = self::parseNullable($value);
+        if ($parsed === null || ! is_finite($parsed)) {
+            return 0.0;
+        }
+
+        return round($parsed, max(0, $decimals ?? self::ACCURACY_DECIMALS));
+    }
+
+    /**
+     * Potong digit desimal tanpa pembulatan.
+     */
     public static function truncate(mixed $number, ?int $decimals = null): float
     {
         $parsed = self::parseNullable($number);
@@ -166,6 +210,9 @@ class NumberHelper
         return $adjusted / $factor;
     }
 
+    /**
+     * Format angka hasil truncation tanpa pembulatan.
+     */
     public static function formatTruncated(
         mixed $number,
         ?int $decimals = null,
@@ -182,6 +229,9 @@ class NumberHelper
         );
     }
 
+    /**
+     * Format untuk currency (Rupiah)
+     */
     public static function currency(mixed $number): string
     {
         if ($number === null || $number === '') {
@@ -191,6 +241,9 @@ class NumberHelper
         return 'Rp '.self::formatFixed($number, 0, ',', '.');
     }
 
+    /**
+     * Format untuk weight (Kg)
+     */
     public static function weight(mixed $number): string
     {
         if ($number === null || $number === '') {
@@ -200,6 +253,9 @@ class NumberHelper
         return self::format($number, self::DEFAULT_DECIMALS, ',', '.').' Kg';
     }
 
+    /**
+     * Format untuk volume (M3)
+     */
     public static function volume(mixed $number): string
     {
         if ($number === null || $number === '') {
@@ -209,11 +265,20 @@ class NumberHelper
         return self::format($number, self::DEFAULT_DECIMALS, ',', '.').' M3';
     }
 
+    /**
+     * Parse input value to float (smart detection).
+     * Returns 0.0 if invalid or null.
+     */
     public static function parse(mixed $value): float
     {
         return self::parseNullable($value) ?? 0.0;
     }
 
+    /**
+     * Parse input user menjadi float standard.
+     * Support format Indonesia (1.234,56) dan US (1,234.56).
+     * Fleksibel mengenali titik dan koma.
+     */
     public static function parseNullable(mixed $value): ?float
     {
         if ($value === null || $value === '') {
@@ -229,6 +294,7 @@ class NumberHelper
             return null;
         }
 
+        // Hapus Rp, spasi non-breaking, dll
         $string = str_replace(['Rp', 'rp', ' ', "\xc2\xa0"], '', $string);
 
         $negative = false;
@@ -240,30 +306,43 @@ class NumberHelper
         $hasComma = str_contains($string, ',');
         $hasDot = str_contains($string, '.');
 
+        // Case 1: Mixed separators (e.g. 1.234,56 or 1,234.56)
         if ($hasComma && $hasDot) {
             $lastComma = strrpos($string, ',');
             $lastDot = strrpos($string, '.');
 
             if ($lastComma > $lastDot) {
+                // Indo: 1.234,56
                 $string = str_replace('.', '', $string);
                 $string = str_replace(',', '.', $string);
             } else {
+                // US: 1,234.56
                 $string = str_replace(',', '', $string);
             }
-        } elseif ($hasComma) {
+        }
+        // Case 2: Only Comma (e.g. 12,5 or 1,234)
+        elseif ($hasComma) {
+            // Regex: Start, 1-3 digits, groups of (, followed by 3 digits)
             if (preg_match('/^\d{1,3}(,\d{3})+$/', $string)) {
+                // US Thousands (1,234)
                 $string = str_replace(',', '', $string);
             } else {
+                // Indo Decimal (12,5)
                 $string = str_replace(',', '.', $string);
             }
-        } elseif ($hasDot) {
-            if (
-                ! str_starts_with($string, '0.')
-                && ! str_starts_with($string, '-0.')
-                && preg_match('/^\d{1,3}(\.\d{3})+$/', $string)
-            ) {
+        }
+        // Case 3: Only Dot (e.g. 12.5 or 1.234)
+        elseif ($hasDot) {
+            // Special Case: 0.xxx is ALWAYS decimal
+            if (str_starts_with($string, '0.') || str_starts_with($string, '-0.')) {
+                // Already valid float format
+            }
+            // Check if strictly thousands (1.234.567 or 1.234)
+            elseif (preg_match('/^\d{1,3}(\.\d{3})+$/', $string)) {
+                // Indo Thousands
                 $string = str_replace('.', '', $string);
             }
+            // Else assume decimal (12.5 or 1.2345 or user typed 1.5 for 1,5)
         }
 
         $string = preg_replace('/[^0-9.]/', '', $string);

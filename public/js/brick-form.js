@@ -121,10 +121,14 @@ function initBrickForm(root) {
         const num = Number(value);
         if (!isFinite(num)) return NaN;
 
-        // Keep high precision for volume (similar to NumberHelper::formatPlain default behavior).
+        // Round to the accuracy standard (11 decimals) so the previewed volume
+        // matches what supply-be stores. Shared helper with a local fallback.
+        if (window.NumberHelperClient && typeof window.NumberHelperClient.accurate === 'function') {
+            return window.NumberHelperClient.accurate(num);
+        }
+
         const precisionFactor = 10 ** 11;
-        const rounded = Math.round((num + Number.EPSILON) * precisionFactor) / precisionFactor;
-        return rounded;
+        return Math.round((num + Number.EPSILON) * precisionFactor) / precisionFactor;
     }
 
     function formatRupiah(num) {

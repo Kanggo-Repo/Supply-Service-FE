@@ -423,8 +423,13 @@ function initSandForm(root) {
         const heightM = parseDecimal(dimHeight?.value) || 0;
 
         if (lengthM > 0 && widthM > 0 && heightM > 0) {
-            // Already in meters, just multiply to get M3
-            const volumeM3 = lengthM * widthM * heightM;
+            // Already in meters, just multiply to get M3.
+            // Cap at 11 decimals (11th rounded) to match what supply-be stores,
+            // so the previewed volume and comparison price equal the saved values.
+            const rawVolumeM3 = lengthM * widthM * heightM;
+            const volumeM3 = (window.NumberHelperClient && typeof window.NumberHelperClient.accurate === 'function')
+                ? window.NumberHelperClient.accurate(rawVolumeM3)
+                : Math.round(rawVolumeM3 * 1e11) / 1e11;
             const normalizedVolume = normalizeSmartDecimal(volumeM3);
             currentVolume = normalizedVolume;
             formatValuesWithHelper([
